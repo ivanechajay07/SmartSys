@@ -4,7 +4,7 @@ Sistema Integral de Gestión de Servicios Operativos y Control Logístico para *
 
 SmartSys cubre el ciclo logístico completo: solicitudes de material, reposiciones, programación contractual derivada del TDR, despachos con reservas de stock, entregas totales o parciales, recepción en punto de entrega, cumplimiento contractual, notificaciones, reportes y auditoría.
 
-> **Estado:** release candidata para piloto controlado y aceptación funcional. **No debe declararse producción** hasta cerrar los pendientes P1 del informe [Calidad y pendientes](docs/CALIDAD_Y_PENDIENTES.md) (TLS, rate limiting, backups, validación Testcontainers y migración a Spring 7).
+> **Estado:** release candidata para piloto controlado y aceptación funcional. **No debe declararse producción** hasta cerrar los pendientes P1 del informe(TLS, rate limiting, backups, validación Testcontainers y migración a Spring 7).
 
 ---
 
@@ -35,7 +35,7 @@ SmartSys cubre el ciclo logístico completo: solicitudes de material, reposicion
 - Recepción en punto de entrega con conformidad, cantidades rechazadas y evidencia.
 - Hoja de ruta corporativa con firmas de despacho, transportista y recepción persistentes, datos fiscales de la empresa y exportación a PDF A4 con las firmas incluidas.
 - Cumplimiento de TDR, puntualidad y cláusulas contractuales (solo alerta de revisión manual, sin penalidad automática).
-- Base de datos MySQL alineada al modelo físico APF2: 17 tablas núcleo (`rol`, `usuario`, `proveedor`, `producto`, `inventario`, `movimiento_inventario`, `ingreso_almacen`, `detalle_ingreso`, `orden_servicio`, `solicitud_material`, `detalle_solicitud`, `salida_almacen`, `detalle_salida`, `despacho`, `alerta_stock`, `solicitud_reposicion`, `reporte_inventario`) más extensiones funcionales del sistema.
+- Base de datos MySQL alineada al modelo físico: 17 tablas núcleo (`rol`, `usuario`, `proveedor`, `producto`, `inventario`, `movimiento_inventario`, `ingreso_almacen`, `detalle_ingreso`, `orden_servicio`, `solicitud_material`, `detalle_solicitud`, `salida_almacen`, `detalle_salida`, `despacho`, `alerta_stock`, `solicitud_reposicion`, `reporte_inventario`) más extensiones funcionales del sistema.
 - Notificaciones persistentes y en tiempo real; centro de actividad en la barra superior con notificaciones, alertas de stock y asignaciones.
 - Reportes JSON/CSV/XLSX/PDF (12 reportes) con diseño corporativo: Excel con filtros, paneles congelados, hoja de resumen y totales; PDF paginado con cabecera y pie de página; CSV con metadatos y totales. Cada exportación se registra en `reporte_inventario` y se muestra en el historial de la página de reportes.
 - Perfil de usuario completo: datos personales, avatar, seguridad, fortaleza de contraseña y preferencias de tema.
@@ -82,7 +82,6 @@ Solo existen si `SEED_DEMO=true`. Contraseña inicial: valor de `SEED_PASSWORD` 
 | `operativo@smartsys.local` | Personal operativo |
 | `gerente@smartsys.local` | Gerente general |
 
-En producción use `SEED_DEMO=false` y aprovisione usuarios según el [Manual de administración](docs/MANUAL_ADMINISTRACION.md).
 
 ## 4. Desarrollo local
 
@@ -131,29 +130,13 @@ Resultados de la última ejecución: **46 pruebas backend (45 OK, 1 omitida)**, 
 SmartSys/
 ├── backend/                 API Spring Boot en capas (controller/service/dao/model), Flyway y pruebas
 ├── frontend/                SPA React + TypeScript, pruebas y E2E
-├── docs/                    Manuales, arquitectura, API y seguridad
 ├── docker-compose.yml       MySQL + phpMyAdmin + backend + frontend
 ├── .env.example             Plantilla de configuración
 └── README.md
 ```
 
-## 7. Documentación
 
-| Documento | Contenido |
-| --- | --- |
-| [Instalación](docs/INSTALACION.md) | Requisitos, despliegue, verificación y Solución de problemas |
-| [Manual de usuario](docs/MANUAL_USUARIO.md) | Uso por rol y flujos operativos |
-| [Manual de administración](docs/MANUAL_ADMINISTRACION.md) | Usuarios, maestros, respaldos y operación |
-| [API](docs/API.md) | Endpoints, autenticación, ejemplos y errores |
-| [Arquitectura](docs/ARQUITECTURA.md) | Componentes, capas y decisiones |
-| [Modelo de datos](docs/MODELO_DATOS.md) | 37 tablas, núcleo APF2, permisos, relaciones y máquinas de estado |
-| [Despliegue](docs/DESPLIEGUE.md) | Variables, TLS, respaldo, actualización |
-| [Política de seguridad](docs/POLITICA_SEGURIDAD.md) | Controles, revisión y riesgos residuales |
-| [Evidencia de escaneo](docs/security/README.md) | Resultados npm/Trivy y comandos reproducibles |
-| [Capturas de interfaz](docs/screenshots/) | Login rediseñado en escritorio y móvil |
-| [Calidad y pendientes](docs/CALIDAD_Y_PENDIENTES.md) | Evidencia de pruebas y veredicto |
-
-## 8. Seguridad en una página
+## 7. Seguridad en una página
 
 - API stateless con Bearer JWT; refresh tokens opacos rotativos almacenados como hash SHA-256.
 - Contraseñas con BCrypt factor 12; bloqueo temporal tras 5 intentos fallidos.
@@ -164,9 +147,8 @@ SmartSys/
 - Nginx agrega CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`.
 - Dependencias: `npm audit` y la imagen frontend en 0 vulnerabilidades; el backend conserva 2 CVE críticas de Spring WebMVC en funcionalidades no utilizadas (XSLT/SSE), documentadas como bloqueador P1.
 
-Detalle completo y riesgos residuales en [Política de seguridad](docs/POLITICA_SEGURIDAD.md).
 
-## 9. Limitaciones conocidas
+## 8. Limitaciones conocidas
 
 - Testcontainers no puede conectarse al Docker Desktop de este entorno; la prueba MySQL real se omite automáticamente (`disabledWithoutDocker`). El esquema se validó manualmente contra MySQL 8 con Flyway + `ddl-auto=validate`.
 - La administración de usuarios se realiza desde la interfaz **Usuarios y roles** según los permisos asignados al rol.
@@ -177,7 +159,6 @@ Detalle completo y riesgos residuales en [Política de seguridad](docs/POLITICA_
 - La imagen de phpMyAdmin contiene bibliotecas vulnerables; no debe desplegarse en producción y solo se publica en `127.0.0.1`.
 - El repositorio no está inicializado en Git.
 
-## 10. Contacto
+## 9. Contacto
 
 Higiene y Salud S.A.C. — Equipo de Logística y Sistemas.
-Documento generado para la entrega de las fases 5–10 del proyecto SmartSys.
