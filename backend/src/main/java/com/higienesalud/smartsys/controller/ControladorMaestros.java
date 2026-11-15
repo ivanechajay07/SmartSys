@@ -84,14 +84,21 @@ public class ControladorMaestros {
 
     @GetMapping("/products")
     @PreAuthorize("@permisos.puede('DATOS_MAESTROS','VER')")
-    public List<Producto> products() {
+    public List<ProductoDTO> products() {
         return service.products();
     }
 
     @PostMapping("/products")
     @PreAuthorize("@permisos.puede('DATOS_MAESTROS','CREAR')")
-    public Producto createProduct(@Valid @RequestBody ProductRequest request) {
+    public ProductoDTO createProduct(@Valid @RequestBody ProductoRequest request) {
         return service.createProduct(request);
+    }
+
+    @PutMapping("/products/{id}")
+    @PreAuthorize("@permisos.puede('DATOS_MAESTROS','EDITAR')")
+    public ProductoDTO updateProduct(@PathVariable Long id,
+                                     @Valid @RequestBody ProductoRequest request) {
+        return service.updateProduct(id, request);
     }
 
     @GetMapping("/inventory")

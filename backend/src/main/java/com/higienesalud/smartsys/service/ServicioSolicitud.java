@@ -1,6 +1,7 @@
 package com.higienesalud.smartsys.service;
 
 import com.higienesalud.smartsys.dao.*;
+import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.service.*;
 import com.higienesalud.smartsys.security.*;
 import com.higienesalud.smartsys.exception.*;
@@ -94,7 +95,7 @@ public class ServicioSolicitud {
             if (item.cantidad() == null || item.cantidad().signum() <= 0) {
                 throw new ExcepcionNegocio("Las cantidades deben ser mayores a cero");
             }
-            Producto producto = productoDao.findById(item.productoId())
+            Producto producto = productoDao.leer(item.productoId())
                     .orElseThrow(() -> new ExcepcionNoEncontrada("Producto no encontrado"));
             solicitud.getDetalles().add(DetalleSolicitud.builder()
                     .solicitud(solicitud).producto(producto)

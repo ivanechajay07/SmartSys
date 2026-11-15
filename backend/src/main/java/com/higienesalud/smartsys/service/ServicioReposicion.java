@@ -9,7 +9,7 @@ import com.higienesalud.smartsys.exception.*;
 import com.higienesalud.smartsys.exception.ExcepcionNegocio;
 import com.higienesalud.smartsys.exception.ExcepcionNoEncontrada;
 import com.higienesalud.smartsys.model.Producto;
-import com.higienesalud.smartsys.dao.ProductoDao;
+import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.service.ServicioNotificacion;
 import com.higienesalud.smartsys.model.Rol;
 import com.higienesalud.smartsys.model.Usuario;
@@ -62,7 +62,7 @@ public class ServicioReposicion {
                 .estado(EstadoReposicion.BORRADOR).solicitante(solicitante)
                 .fechaSolicitud(LocalDateTime.now()).build();
         for (Item item : items) {
-            Producto producto = productoDao.findById(item.productoId())
+            Producto producto = productoDao.leer(item.productoId())
                     .orElseThrow(() -> new ExcepcionNoEncontrada("Producto no encontrado"));
             reposicion.getDetalles().add(DetalleReposicion.builder()
                     .reposicion(reposicion).producto(producto).cantidad(item.cantidad())

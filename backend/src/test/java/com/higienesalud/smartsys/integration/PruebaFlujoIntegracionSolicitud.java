@@ -1,6 +1,7 @@
 package com.higienesalud.smartsys.integration;
 
 import com.higienesalud.smartsys.dao.*;
+import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.service.*;
 import com.higienesalud.smartsys.security.*;
 import com.higienesalud.smartsys.exception.*;
@@ -51,7 +52,7 @@ class PruebaFlujoIntegracionSolicitud {
                 .ruc("20131257750").razonSocial("ESSALUD").build());
         punto = puntoDao.save(PuntoEntrega.builder()
                 .entidad(entidad).nombre("Hospital Rebagliati").build());
-        producto = productoDao.save(Producto.builder()
+        producto = productoDao.crear(Producto.builder()
                 .codigo("TEST-001").nombre("Jabon de prueba").unidadMedida("BOTELLA").build());
         inventarioDao.save(Inventario.builder()
                 .producto(producto).stockFisico(new BigDecimal("100"))

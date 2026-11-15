@@ -1,6 +1,7 @@
 package com.higienesalud.smartsys.service;
 
 import com.higienesalud.smartsys.dao.*;
+import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.service.*;
 import com.higienesalud.smartsys.security.*;
 import com.higienesalud.smartsys.exception.*;

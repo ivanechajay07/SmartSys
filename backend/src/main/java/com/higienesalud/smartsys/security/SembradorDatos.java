@@ -1,6 +1,7 @@
 package com.higienesalud.smartsys.security;
 
 import com.higienesalud.smartsys.dao.*;
+import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.exception.*;
 
 import com.higienesalud.smartsys.model.*;
@@ -106,19 +107,19 @@ public class SembradorDatos {
             Tdr tdr2 = tdrDao.save(Tdr.builder().contrato(contrato2).version("V1")
                     .fechaVigencia(LocalDate.now().minusMonths(1)).build());
 
-            Producto jabon = productoDao.save(Producto.builder().codigo("PROD-001")
+            Producto jabon = productoDao.crear(Producto.builder().codigo("PROD-001")
                     .nombre("Jabon liquido antibacterial 1L").categoria("Higiene")
                     .unidadMedida("BOTELLA").marca("Genoma").requiereLote(true).requiereVencimiento(true).build());
-            Producto papel = productoDao.save(Producto.builder().codigo("PROD-002")
+            Producto papel = productoDao.crear(Producto.builder().codigo("PROD-002")
                     .nombre("Papel higienico institucional 300m").categoria("Higiene")
                     .unidadMedida("ROLLO").marca("Scott").build());
-            Producto alcohol = productoDao.save(Producto.builder().codigo("PROD-003")
+            Producto alcohol = productoDao.crear(Producto.builder().codigo("PROD-003")
                     .nombre("Alcohol etilico 70% 1L").categoria("Desinfeccion")
                     .unidadMedida("BOTELLA").marca("Quimica Peru").requiereVencimiento(true).build());
-            Producto guantes = productoDao.save(Producto.builder().codigo("PROD-004")
+            Producto guantes = productoDao.crear(Producto.builder().codigo("PROD-004")
                     .nombre("Guantes nitrilo M (caja x100)").categoria("Proteccion")
                     .unidadMedida("CAJA").marca("Ansell").build());
-            Producto detergente = productoDao.save(Producto.builder().codigo("PROD-005")
+            Producto detergente = productoDao.crear(Producto.builder().codigo("PROD-005")
                     .nombre("Detergente industrial 5kg").categoria("Limpieza")
                     .unidadMedida("BOLSA").marca("Sapolio").build());
 

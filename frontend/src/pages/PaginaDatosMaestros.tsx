@@ -11,6 +11,7 @@ import {
   Mail,
   MapPin,
   Package,
+  Pencil,
   Phone,
   Plus,
   Settings2,
@@ -83,12 +84,14 @@ const TABS: { key: Tab; label: string; Icon: typeof Building2 }[] = [
 export default function PaginaDatosMaestros() {
   const can = useAuth((state) => state.can);
   const canManage = can('DATOS_MAESTROS', 'crear') || can('DATOS_MAESTROS', 'editar');
+  const canEditProduct = can('DATOS_MAESTROS', 'editar');
   const canContract = can('DATOS_MAESTROS', 'crear');
   const canManagePermissions = can('USUARIOS', 'editar');
 
   const [tab, setTab] = useState<Tab>('entities');
   const [modal, setModal] = useState<ModalKind>(null);
   const [contextEntity, setContextEntity] = useState<EntidadPublica | null>(null);
+  const [contextProduct, setContextProduct] = useState<Producto | null>(null);
   const [contextContract, setContextContract] = useState<Contrato | null>(null);
   const [contextTdr, setContextTdr] = useState<Tdr | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -124,8 +127,9 @@ export default function PaginaDatosMaestros() {
     reloadAll();
   };
 
-  const open = (kind: ModalKind, options?: { entity?: EntidadPublica; contract?: Contrato; tdr?: Tdr }) => {
+  const open = (kind: ModalKind, options?: { entity?: EntidadPublica; product?: Producto; contract?: Contrato; tdr?: Tdr }) => {
     setContextEntity(options?.entity ?? null);
+    setContextProduct(options?.product ?? null);
     setContextContract(options?.contract ?? null);
     setContextTdr(options?.tdr ?? null);
     setModal(kind);
@@ -267,6 +271,7 @@ export default function PaginaDatosMaestros() {
                     <th>Lote</th>
                     <th>Vencimiento</th>
                     <th>Estado</th>
+                    {canEditProduct && <th>Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -280,6 +285,13 @@ export default function PaginaDatosMaestros() {
                       <td className="text-xs">{item.requiereLote ? 'Si' : 'No'}</td>
                       <td className="text-xs">{item.requiereVencimiento ? 'Si' : 'No'}</td>
                       <td><Badge tone={item.activo ? 'green' : 'slate'}>{item.activo ? 'Activo' : 'Inactivo'}</Badge></td>
+                      {canEditProduct && (
+                        <td>
+                          <Button size="sm" variant="soft" onClick={() => open('product', { product: item })}>
+                            <Pencil className="h-3.5 w-3.5" /> Editar
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -462,7 +474,7 @@ export default function PaginaDatosMaestros() {
         onClose={() => setModal(null)}
         onSaved={onSaved}
       />
-      <ProductModal open={modal === 'product'} onClose={() => setModal(null)} onSaved={onSaved} />
+      <ProductModal open={modal === 'product'} product={contextProduct} onClose={() => setModal(null)} onSaved={onSaved} />
       <ContractModal
         open={modal === 'contract'}
         entities={entities.data ?? []}
@@ -1035,26 +1047,47 @@ function PointModal({ open, entity, onClose, onSaved }: { open: boolean; entity:
   );
 }
 
-function ProductModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: (message: string) => void }) {
+function ProductModal({ open, product, onClose, onSaved }: { open: boolean; product?: Producto | null; onClose: () => void; onSaved: (message: string) => void }) {
+  const editing = Boolean(product);
   const [form, setForm] = useState({ codigo: '', nombre: '', descripcion: '', categoria: '', unidadMedida: 'UNIDAD', marca: '', requiereLote: false, requiereVencimiento: false, stockMinimo: '' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setForm({ codigo: '', nombre: '', descripcion: '', categoria: '', unidadMedida: 'UNIDAD', marca: '', requiereLote: false, requiereVencimiento: false, stockMinimo: '' });
+    if (product) {
+      setForm({
+        codigo: product.codigo,
+        nombre: product.nombre,
+        descripcion: product.descripcion ?? '',
+        categoria: product.categoria ?? '',
+        unidadMedida: product.unidadMedida,
+        marca: product.marca ?? '',
+        requiereLote: product.requiereLote,
+        requiereVencimiento: product.requiereVencimiento,
+        stockMinimo: '',
+      });
+    } else {
+      setForm({ codigo: '', nombre: '', descripcion: '', categoria: '', unidadMedida: 'UNIDAD', marca: '', requiereLote: false, requiereVencimiento: false, stockMinimo: '' });
+    }
     setError(null);
-  }, [open]);
+  }, [open, product]);
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      await api.post('/products', {
+      const payload = {
         ...form,
         stockMinimo: form.stockMinimo === '' ? null : Number(form.stockMinimo),
-      });
-      onSaved('Producto registrado.');
+      };
+      if (editing && product) {
+        await api.put(`/products/${product.id}`, payload);
+        onSaved('Producto actualizado.');
+      } else {
+        await api.post('/products', payload);
+        onSaved('Producto registrado.');
+      }
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -1065,8 +1098,8 @@ function ProductModal({ open, onClose, onSaved }: { open: boolean; onClose: () =
   return (
     <Modal
       open={open}
-      title="Nuevo producto"
-      subtitle="Registra un artículo del catálogo maestro de bienes."
+      title={editing ? 'Editar producto' : 'Nuevo producto'}
+      subtitle={editing ? 'Actualiza los datos del producto seleccionado.' : 'Registra un artículo del catálogo maestro de bienes.'}
       icon={<Package className="h-4 w-4" />}
       tone="brand"
       onClose={onClose}
@@ -1074,7 +1107,9 @@ function ProductModal({ open, onClose, onSaved }: { open: boolean; onClose: () =
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button loading={busy} disabled={!form.codigo || !form.nombre} onClick={submit}>Registrar</Button>
+          <Button loading={busy} disabled={!form.codigo || !form.nombre} onClick={submit}>
+            {editing ? 'Actualizar' : 'Registrar'}
+          </Button>
         </>
       }
     >

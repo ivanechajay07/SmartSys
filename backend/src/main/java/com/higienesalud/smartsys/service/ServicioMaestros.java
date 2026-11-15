@@ -1,6 +1,7 @@
 package com.higienesalud.smartsys.service;
 
 import com.higienesalud.smartsys.dao.*;
+import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.exception.ExcepcionNegocio;
 import com.higienesalud.smartsys.exception.ExcepcionNoEncontrada;
 import com.higienesalud.smartsys.model.*;
@@ -128,7 +129,7 @@ public class ServicioMaestros {
     public TdrItem createItem(Long tdrId, TdrItemRequest r) {
         Tdr tdr = tdrDao.findById(tdrId)
                 .orElseThrow(() -> new ExcepcionNoEncontrada("TDR no encontrado"));
-        Producto producto = productoDao.findById(r.productoId())
+        Producto producto = productoDao.leer(r.productoId())
                 .orElseThrow(() -> new ExcepcionNoEncontrada("Producto no encontrado"));
         return tdrItemDao.save(TdrItem.builder()
                 .tdr(tdr).producto(producto).cantidadTotal(r.cantidadTotal())
@@ -140,13 +141,15 @@ public class ServicioMaestros {
     }
 
     @Transactional(readOnly = true)
-    public List<Producto> products() {
-        return productoDao.findAll();
+    public List<ProductoDTO> products() {
+        return productoDao.listar().stream()
+                .map(ProductoDTO::desde)
+                .toList();
     }
 
     @Transactional
-    public Producto createProduct(ProductRequest r) {
-        Producto producto = productoDao.save(Producto.builder()
+    public ProductoDTO createProduct(ProductoRequest r) {
+        Producto producto = productoDao.crear(Producto.builder()
                 .codigo(r.codigo()).nombre(r.nombre()).descripcion(r.descripcion())
                 .categoria(r.categoria()).unidadMedida(r.unidadMedida()).marca(r.marca())
                 .requiereLote(Boolean.TRUE.equals(r.requiereLote()))
@@ -158,7 +161,26 @@ public class ServicioMaestros {
                         .stockReservado(BigDecimal.ZERO)
                         .stockMinimo(r.stockMinimo() == null ? BigDecimal.ZERO : r.stockMinimo())
                         .build()));
-        return producto;
+        return ProductoDTO.desde(producto);
+    }
+
+    @Transactional
+    public ProductoDTO updateProduct(Long id, ProductoRequest r) {
+        Producto producto = productoDao.leer(id)
+                .orElseThrow(() -> new ExcepcionNoEncontrada("Producto no encontrado"));
+
+        producto.setCodigo(r.codigo());
+        producto.setNombre(r.nombre());
+        producto.setDescripcion(r.descripcion());
+        producto.setCategoria(r.categoria());
+        producto.setUnidadMedida(r.unidadMedida());
+        producto.setMarca(r.marca());
+        producto.setRequiereLote(Boolean.TRUE.equals(r.requiereLote()));
+        producto.setRequiereVencimiento(Boolean.TRUE.equals(r.requiereVencimiento()));
+        producto.setActivo(r.activo() == null || r.activo());
+
+        productoDao.actualizar(producto);
+        return ProductoDTO.desde(producto);
     }
 
     @Transactional(readOnly = true)
@@ -244,12 +266,6 @@ public class ServicioMaestros {
                                  @NotNull @Positive BigDecimal cantidadPorEntrega,
                                  LocalDate fechaProgramada, LocalDate fechaLimite,
                                  Integer diasPersonalizado, String observaciones) {
-    }
-
-    public record ProductRequest(@NotBlank String codigo, @NotBlank String nombre, String descripcion,
-                                 String categoria, @NotBlank String unidadMedida, String marca,
-                                 Boolean requiereLote, Boolean requiereVencimiento, Boolean activo,
-                                 BigDecimal stockMinimo) {
     }
 
     public record EntryRequest(@NotNull Long productoId, @NotNull @Positive BigDecimal cantidad,
