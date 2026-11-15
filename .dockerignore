@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.local
+**/node_modules
+**/dist
+**/target
+**/coverage
+**/playwright-report
+**/test-results
+*.log
+.idea
+.vscode

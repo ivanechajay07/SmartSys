@@ -1,0 +1,103 @@
+/* ==========================================================================
+   Avatares de usuario y presencia
+   ========================================================================== */
+
+.user-avatar {
+  position: relative;
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #d1faee, #a7f3dd);
+  color: #065e51;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  overflow: visible;
+}
+
+.user-avatar > img {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.user-avatar > span {
+  display: grid;
+  height: 100%;
+  width: 100%;
+  place-items: center;
+  border-radius: inherit;
+}
+
+.user-presence {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  height: 10px;
+  width: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+}
+
+.user-presence.is-online {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
+}
+
+.user-presence.is-offline {
+  background: #94a3b8;
+}
+
+html.theme-dark .user-presence {
+  border-color: #0c1829;
+}
+
+/* Selector de avatar en perfil y usuarios */
+.avatar-uploader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar-uploader-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.avatar-uploader-title {
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.avatar-uploader-hint {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+.avatar-uploader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-avatar,
+  .user-presence {
+    transition: none !important;
+  }
+}
+
+html.theme-dark .avatar-uploader-title {
+  color: #f1f5f9;
+}
+
+html.theme-dark .avatar-uploader-hint {
+  color: #94a3b8;
+}
