@@ -31,8 +31,10 @@ import {
   ModulePagination,
   ModuleProgress,
   ModuleViewToggle,
+  useResponsiveView,
   usePagination,
 } from '@/components/module';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import '@/styles/modules.css';
 
 function complianceTone(value: number): 'green' | 'amber' | 'red' {
@@ -52,7 +54,7 @@ export default function PaginaCumplimiento() {
   const summary = useApiQuery<TdrCompliance[]>(() => api.get('/compliance/summary').then((r) => r.data));
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'table' | 'grid'>('grid');
+  const [view, setView] = useResponsiveView('grid');
   const [selected, setSelected] = useState<TdrCompliance | null>(null);
 
   const data = useMemo(() => summary.data ?? [], [summary.data]);
@@ -85,7 +87,20 @@ export default function PaginaCumplimiento() {
     });
   }, [data, filter, search]);
 
-  const pagination = usePagination(filtered, 6, `${filter}|${search}|${view}`);
+  const sorting = useTableSort(filtered, {
+    contrato: (item) => item.contrato,
+    entidad: (item) => item.entidad,
+    comprometido: (item) => Number(item.comprometido),
+    entregado: (item) => Number(item.entregado),
+    cumplimiento: (item) => Number(item.cumplimientoPct),
+    puntualidad: (item) => Number(item.puntualidadPct),
+    incidencias: (item) => Number(item.incidencias),
+  });
+  const pagination = usePagination(
+    sorting.rows,
+    6,
+    `${filter}|${search}|${view}|${sorting.sort?.key ?? ''}|${sorting.sort?.dir ?? ''}`,
+  );
 
   return (
     <div className="mod-page">
@@ -105,7 +120,7 @@ export default function PaginaCumplimiento() {
         }
       />
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="TDR evaluados"
           value={formatNumber(data.length)}
@@ -243,16 +258,16 @@ export default function PaginaCumplimiento() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table table-pro">
               <thead>
                 <tr>
-                  <th>Contrato</th>
-                  <th>Entidad</th>
-                  <th className="text-right">Comprometido</th>
-                  <th className="text-right">Entregado</th>
-                  <th className="text-right">Cumplimiento</th>
-                  <th className="text-right">Puntualidad</th>
-                  <th className="text-right">Incidencias</th>
+                  <SortableTh label="Contrato" column="contrato" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Entidad" column="entidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Comprometido" column="comprometido" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Entregado" column="entregado" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Cumplimiento" column="cumplimiento" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Puntualidad" column="puntualidad" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Incidencias" column="incidencias" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
                   <th />
                 </tr>
               </thead>
@@ -347,7 +362,7 @@ export default function PaginaCumplimiento() {
                 <span className="text-xs text-slate-400">{selected.items.length} ítems del TDR</span>
               </div>
               <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="table">
+                <table className="table table-pro">
                   <thead>
                     <tr>
                       <th>Producto</th>

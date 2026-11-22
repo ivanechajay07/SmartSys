@@ -30,6 +30,7 @@ import {
 import { api, apiErrorMessage } from '@/lib/api';
 import { EMPRESA } from '@/lib/empresa';
 import { toastError, toastSuccess } from '@/lib/toasts';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import { fetchUsers } from '@/lib/catalogs';
 import { formatDate, formatDateTime, formatQuantity, stateLabel, safeUrl } from '@/lib/format';
 import { useApiQuery } from '@/lib/hooks';
@@ -163,6 +164,14 @@ export default function PaginaDetalleDespacho() {
     }
   };
 
+  const materialSort = useTableSort(dispatch.data?.detalles ?? [], {
+    producto: (det) => det.producto.nombre,
+    comprometido: (det) => Number(det.cantidadComprometida),
+    preparado: (det) => Number(det.cantidadPreparada),
+    despachado: (det) => Number(det.cantidadDespachada),
+    reserva: (det) => det.reservaId ?? 0,
+  });
+
   if (dispatch.loading && !dispatch.data) return <Spinner label="Cargando despacho..." />;
   if (dispatch.error) return <ErrorAlert message={dispatch.error} onRetry={dispatch.reload} />;
   if (!dispatch.data) return <ErrorAlert message="Despacho no encontrado." />;
@@ -222,7 +231,7 @@ export default function PaginaDetalleDespacho() {
 
       {actionError && <ErrorAlert message={actionError} />}
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="Comprometido"
           value={formatQuantity(totals.committed)}
@@ -315,19 +324,19 @@ export default function PaginaDetalleDespacho() {
               <Badge tone="brand">{formatQuantity(totals.committed)} und</Badge>
             </div>
             <div className="overflow-x-auto">
-              <table className="table">
+              <table className="table table-pro">
                 <thead>
                   <tr>
-                    <th>Producto</th>
-                    <th className="text-right">Comprometido</th>
-                    <th className="hidden text-right sm:table-cell">Preparado</th>
-                    <th className="text-right">Despachado</th>
+                    <SortableTh label="Producto" column="producto" sortKey={materialSort.sort?.key ?? null} direction={materialSort.sort?.dir ?? null} onSort={materialSort.toggle} />
+                    <SortableTh label="Comprometido" column="comprometido" className="text-right" sortKey={materialSort.sort?.key ?? null} direction={materialSort.sort?.dir ?? null} onSort={materialSort.toggle} />
+                    <SortableTh label="Preparado" column="preparado" className="hidden text-right sm:table-cell" sortKey={materialSort.sort?.key ?? null} direction={materialSort.sort?.dir ?? null} onSort={materialSort.toggle} />
+                    <SortableTh label="Despachado" column="despachado" className="text-right" sortKey={materialSort.sort?.key ?? null} direction={materialSort.sort?.dir ?? null} onSort={materialSort.toggle} />
                     <th>Avance</th>
-                    <th className="hidden sm:table-cell">Reserva</th>
+                    <SortableTh label="Reserva" column="reserva" className="hidden sm:table-cell" sortKey={materialSort.sort?.key ?? null} direction={materialSort.sort?.dir ?? null} onSort={materialSort.toggle} />
                   </tr>
                 </thead>
                 <tbody>
-                  {data.detalles.map((det) => {
+                  {materialSort.rows.map((det) => {
                     const itemProgress = Number(det.cantidadComprometida) > 0
                       ? Math.round((Number(det.cantidadDespachada) / Number(det.cantidadComprometida)) * 100)
                       : 0;
@@ -1425,6 +1434,7 @@ function ReceptionModal({
     items: { productoId: number; cantidadRecibida: number; cantidadRechazada: number; observaciones: string }[];
   }) => void;
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [recibidoPor, setRecibidoPor] = useState('');
   const [documento, setDocumento] = useState('');
   const [observaciones, setObservaciones] = useState('');
@@ -1433,6 +1443,7 @@ function ReceptionModal({
 
   useEffect(() => {
     if (!open) return;
+    setStep(1);
     setRecibidoPor('');
     setDocumento('');
     setObservaciones('');
@@ -1473,32 +1484,60 @@ function ReceptionModal({
       size="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button
-            loading={busy}
-            disabled={recibidoPor.trim().length < 3}
-            onClick={() =>
-              onSubmit({
-                recibidoPor,
-                documentoIdentidad: documento,
-                observaciones,
-                evidenciaUrl,
-                items: details.map((det) => ({
-                  productoId: det.producto.id,
-                  cantidadRecibida: Number(values[det.producto.id]?.recibida ?? 0),
-                  cantidadRechazada: Number(values[det.producto.id]?.rechazada ?? 0),
-                  observaciones: '',
-                })),
-              })
-            }
-          >
-            Registrar recepción
+          <Button variant="secondary" onClick={step === 1 ? onClose : () => setStep((current) => (current - 1) as 1 | 2 | 3)}>
+            {step === 1 ? 'Cancelar' : 'Atrás'}
           </Button>
+          {step < 3 ? (
+            <Button
+              variant="primary"
+              disabled={step === 1 && recibidoPor.trim().length < 3}
+              onClick={() => setStep((current) => (current + 1) as 1 | 2 | 3)}
+            >
+              Continuar
+            </Button>
+          ) : (
+            <Button
+              loading={busy}
+              disabled={recibidoPor.trim().length < 3}
+              onClick={() =>
+                onSubmit({
+                  recibidoPor,
+                  documentoIdentidad: documento,
+                  observaciones,
+                  evidenciaUrl,
+                  items: details.map((det) => ({
+                    productoId: det.producto.id,
+                    cantidadRecibida: Number(values[det.producto.id]?.recibida ?? 0),
+                    cantidadRechazada: Number(values[det.producto.id]?.rechazada ?? 0),
+                    observaciones: '',
+                  })),
+                })
+              }
+            >
+              Registrar recepción
+            </Button>
+          )}
         </>
       }
     >
       <div className="fk-form">
         {error && <ErrorAlert message={error} />}
+
+        <div className="fk-wizard" aria-label={`Paso ${step} de 3`}>
+          {['Responsable', 'Productos', 'Evidencia'].map((label, index) => {
+            const value = (index + 1) as 1 | 2 | 3;
+            return (
+              <div
+                key={label}
+                className={clsx('fk-wizard-step', step === value && 'is-active', step > value && 'is-done')}
+                aria-current={step === value ? 'step' : undefined}
+              >
+                <span className="fk-wizard-dot">{step > value ? '✓' : value}</span>
+                <span>{label}</span>
+              </div>
+            );
+          })}
+        </div>
 
         <FormHero
           tone={withDifference ? 'amber' : 'brand'}
@@ -1524,6 +1563,7 @@ function ReceptionModal({
           }
         />
 
+        {step === 1 && (
         <FormSection
           icon={<UserRound className="h-4 w-4" />}
           title="Responsable de la recepción"
@@ -1538,7 +1578,9 @@ function ReceptionModal({
             </Field>
           </FormGrid>
         </FormSection>
+        )}
 
+        {step === 2 && (
         <FormSection
           icon={<Package className="h-4 w-4" />}
           title="Productos recibidos"
@@ -1606,7 +1648,9 @@ function ReceptionModal({
             })}
           </div>
         </FormSection>
+        )}
 
+        {step === 3 && (
         <FormSection
           icon={<FileText className="h-4 w-4" />}
           title="Observaciones y evidencia"
@@ -1623,6 +1667,7 @@ function ReceptionModal({
             <Input value={evidenciaUrl} onChange={(event) => setEvidenciaUrl(event.target.value)} placeholder="https://..." />
           </Field>
         </FormSection>
+        )}
 
         <FormNote icon={withDifference ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />} tone={withDifference ? 'warn' : 'ok'}>
           {withDifference
@@ -1836,6 +1881,53 @@ function SignaturePad({
         </button>
       </div>
     </div>
+  );
+}
+
+function RouteProductsTable({
+  rows,
+  totalUnits,
+}: {
+  rows: { codigo: string; nombre: string; unidad: string; cantidad: number }[];
+  totalUnits: number;
+}) {
+  const sorting = useTableSort(rows, {
+    codigo: (row) => row.codigo,
+    producto: (row) => row.nombre,
+    unidad: (row) => row.unidad,
+    cantidad: (row) => row.cantidad,
+  });
+
+  return (
+    <table className="table table-pro">
+      <thead>
+        <tr>
+          <SortableTh label="Código" column="codigo" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+          <SortableTh label="Producto" column="producto" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+          <SortableTh label="Unidad" column="unidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+          <SortableTh label="Cantidad" column="cantidad" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+          <th className="text-right">Recibido</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sorting.rows.map((product, index) => (
+          <tr key={`${product.codigo}-${index}`}>
+            <td className="text-xs text-slate-500">{product.codigo}</td>
+            <td>{product.nombre}</td>
+            <td>{product.unidad}</td>
+            <td className="text-right">{formatQuantity(product.cantidad)}</td>
+            <td className="text-right text-slate-300">________</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colSpan={3}>Total: {rows.length} {rows.length === 1 ? 'ítem' : 'ítems'}</td>
+          <td className="text-right">{formatQuantity(totalUnits)}</td>
+          <td />
+        </tr>
+      </tfoot>
+    </table>
   );
 }
 
@@ -2161,35 +2253,7 @@ function RouteModal({
             <section className="fk-doc-section">
               <p className="fk-doc-section-title">Productos transportados</p>
               <div className="fk-table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Producto</th>
-                      <th>Unidad</th>
-                      <th className="text-right">Cantidad</th>
-                      <th className="text-right">Recibido</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productRows.map((product, index) => (
-                      <tr key={`${product.codigo}-${index}`}>
-                        <td className="text-xs text-slate-500">{product.codigo}</td>
-                        <td>{product.nombre}</td>
-                        <td>{product.unidad}</td>
-                        <td className="text-right">{formatQuantity(product.cantidad)}</td>
-                        <td className="text-right text-slate-300">________</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={3}>Total: {productRows.length} {productRows.length === 1 ? 'ítem' : 'ítems'}</td>
-                      <td className="text-right">{formatQuantity(totalUnits)}</td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
+                <RouteProductsTable rows={productRows} totalUnits={totalUnits} />
               </div>
             </section>
 

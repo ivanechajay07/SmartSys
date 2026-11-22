@@ -1,0 +1,3 @@
+ALTER TABLE usuario
+    ADD COLUMN mfa_secret VARCHAR(64) NULL,
+    ADD COLUMN mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;

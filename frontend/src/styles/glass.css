@@ -1,0 +1,736 @@
+/* ==========================================================================
+   Glassmorphism global (2026-11-21)
+   Superficies translúcidas sobre un fondo ambiental suave.
+   ========================================================================== */
+
+:root {
+  --glass-bg: var(--ss-alpha-255-255-255-640);
+  --glass-bg-strong: var(--ss-alpha-255-255-255-820);
+  --glass-border: var(--ss-alpha-255-255-255-720);
+  --glass-border-soft: var(--ss-alpha-148-163-184-200);
+  --glass-input: var(--ss-alpha-255-255-255-560);
+  --glass-header: var(--ss-alpha-255-255-255-420);
+  --glass-blur: 18px;
+  --glass-shadow:
+    0 24px 60px -40px var(--ss-alpha-15-23-42-450),
+    inset 0 1px 0 var(--ss-alpha-255-255-255-820);
+}
+
+html.theme-dark {
+  --glass-bg: var(--ss-alpha-10-20-34-620);
+  --glass-bg-strong: var(--ss-alpha-9-18-31-840);
+  --glass-border: var(--ss-alpha-148-163-184-160);
+  --glass-border-soft: var(--ss-alpha-148-163-184-140);
+  --glass-input: var(--ss-alpha-8-18-32-580);
+  --glass-header: var(--ss-alpha-15-23-42-460);
+  --glass-shadow:
+    0 26px 70px -38px var(--ss-alpha-0-0-0-880),
+    inset 0 1px 0 var(--ss-alpha-255-255-255-070);
+}
+
+html body {
+  background-color: var(--ss-palette-edf3f8);
+  background-image:
+    radial-gradient(70% 60% at 8% 0%, var(--ss-alpha-16-184-148-130), transparent 60%),
+    radial-gradient(55% 45% at 100% 8%, var(--ss-alpha-14-165-233-110), transparent 62%),
+    radial-gradient(45% 40% at 50% 100%, var(--ss-alpha-99-102-241-060), transparent 60%);
+  background-attachment: fixed;
+}
+
+html.theme-dark body {
+  background-color: var(--ss-palette-060f1c);
+  background-image:
+    radial-gradient(70% 60% at 8% 0%, var(--ss-alpha-16-184-148-100), transparent 60%),
+    radial-gradient(55% 45% at 100% 8%, var(--ss-alpha-14-165-233-080), transparent 62%),
+    radial-gradient(45% 40% at 50% 100%, var(--ss-alpha-99-102-241-060), transparent 60%);
+}
+
+html body .app-shell {
+  background: transparent !important;
+}
+
+/* ------------------------------------------------------------- Superficies */
+html body .card,
+html body .mod-card,
+html body .dashboard-kpi,
+html body .mod-kpi,
+html body .mod-tabs,
+html body .dashboard-onboarding,
+html body .app-dropdown,
+html body .app-activity-panel,
+html body .app-command,
+html body .toast,
+html body .app-global-search,
+html body .app-date-chip,
+html body .app-menu-button,
+html body .app-theme-toggle,
+html body .mod-view-toggle {
+  background: var(--glass-bg) !important;
+  border-color: var(--glass-border) !important;
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(155%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(155%);
+}
+
+html body .dashboard-kpi,
+html body .mod-kpi {
+  border-color: var(--glass-border) !important;
+}
+
+html body .modal-panel,
+html body .app-command,
+html body .app-activity-panel,
+html body .app-dropdown,
+html body .toast {
+  background: var(--glass-bg-strong) !important;
+  border-color: var(--glass-border) !important;
+}
+
+/* El centro de actividad usa una superficie blanca sólida en tema claro. */
+html:not(.theme-dark) body .app-activity-panel {
+  background: var(--ss-palette-ffffff) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html body .mod-toolbar,
+html body .requests-toolbar {
+  background: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html body .app-topbar {
+  background: var(--glass-bg-strong) !important;
+  border-bottom-color: var(--glass-border-soft) !important;
+  box-shadow: 0 10px 30px -26px var(--ss-alpha-15-23-42-500);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+}
+
+/* Sidebar: claro en tema claro, oscuro en tema oscuro */
+html body .app-sidebar .sidebar-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+html body .app-sidebar .sidebar-nav {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-padding-bottom: 16px;
+}
+
+html body .app-sidebar .sidebar-bottom {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+  border-top: 1px solid var(--ss-alpha-148-163-184-130);
+  background: var(--ss-alpha-248-250-252-920);
+  box-shadow: 0 -14px 28px -26px var(--ss-alpha-15-23-42-450);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+html.theme-dark body .app-sidebar .sidebar-bottom {
+  background: var(--ss-alpha-8-18-32-940);
+  border-top-color: var(--ss-alpha-148-163-184-160);
+  box-shadow: 0 -14px 28px -24px var(--ss-alpha-0-0-0-800);
+}
+
+html body .app-sidebar .sidebar-link-active,
+html body .app-sidebar .sidebar-link-active:hover {
+  color: var(--ss-palette-ffffff) !important;
+}
+
+/* Tema claro */
+html:not(.theme-dark) body .app-sidebar {
+  background:
+    radial-gradient(100% 60% at 0% 0%, var(--ss-alpha-16-184-148-130), transparent 58%),
+    radial-gradient(80% 50% at 100% 100%, var(--ss-alpha-14-165-233-080), transparent 62%),
+    linear-gradient(180deg, var(--ss-alpha-255-255-255-860), var(--ss-alpha-240-253-249-700)) !important;
+  border-right-color: var(--ss-alpha-148-163-184-180) !important;
+  box-shadow: 20px 0 60px -52px var(--ss-alpha-15-23-42-380);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  backdrop-filter: blur(26px) saturate(150%);
+}
+
+html:not(.theme-dark) body .app-sidebar-mobile {
+  background: var(--ss-alpha-255-255-255-920) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-bottom {
+  border-top-color: var(--ss-color-border) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-brand-name {
+  color: var(--ss-color-text) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-brand-sub,
+html:not(.theme-dark) body .app-sidebar .sidebar-user-role {
+  color: var(--ss-color-text-subtle) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-section-title {
+  color: var(--ss-color-text-muted) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link {
+  color: var(--ss-color-text-muted) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link:hover {
+  border-color: var(--ss-color-border) !important;
+  background: var(--ss-alpha-15-23-42-045) !important;
+  color: var(--ss-color-text) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link-icon {
+  color: var(--ss-color-text-subtle) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-user {
+  border-color: var(--ss-color-border) !important;
+  background: var(--ss-alpha-255-255-255-700) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-user-name {
+  color: var(--ss-color-text) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-user-role {
+  color: var(--ss-color-text-subtle) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-status {
+  border-color: var(--ss-alpha-16-184-148-180) !important;
+  background: var(--ss-alpha-16-184-148-070) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-status-title {
+  color: var(--ss-palette-047664) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-status-copy p:last-child {
+  color: var(--ss-color-text-subtle) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-collapse {
+  border-color: var(--ss-color-border) !important;
+  background: var(--ss-alpha-255-255-255-650) !important;
+  color: var(--ss-color-text-subtle) !important;
+}
+
+/* Tema oscuro */
+html.theme-dark body .app-sidebar {
+  background:
+    radial-gradient(120% 60% at 0% 0%, var(--ss-alpha-16-184-148-160), transparent 58%),
+    linear-gradient(180deg, var(--ss-alpha-6-17-31-920), var(--ss-alpha-3-8-16-880)) !important;
+  border-right-color: var(--ss-alpha-255-255-255-080) !important;
+  box-shadow: 24px 0 70px -54px var(--ss-alpha-0-0-0-900);
+  -webkit-backdrop-filter: blur(26px) saturate(140%);
+  backdrop-filter: blur(26px) saturate(140%);
+}
+
+html.theme-dark body .app-sidebar-mobile {
+  background: var(--ss-alpha-6-17-31-900) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-bottom {
+  border-top-color: var(--ss-alpha-148-163-184-100) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-brand-name {
+  color: var(--ss-palette-f1f5f9) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-brand-sub,
+html.theme-dark body .app-sidebar .sidebar-user-role {
+  color: var(--ss-color-text-faint) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-section-title {
+  color: var(--ss-color-text-faint) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link {
+  color: var(--ss-color-border-strong) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link:hover {
+  border-color: var(--ss-alpha-148-163-184-160) !important;
+  background: var(--ss-alpha-255-255-255-060) !important;
+  color: var(--ss-palette-ffffff) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link-icon {
+  color: var(--ss-color-text-faint) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-user {
+  border-color: var(--ss-alpha-148-163-184-140) !important;
+  background: var(--ss-alpha-255-255-255-060) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+html.theme-dark body .app-sidebar .sidebar-user-name {
+  color: var(--ss-palette-f1f5f9) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-user-role {
+  color: var(--ss-color-text-faint) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-status {
+  border-color: var(--ss-alpha-52-211-172-160) !important;
+  background: var(--ss-alpha-52-211-172-070) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-status-title {
+  color: var(--ss-palette-6ee7b7) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-status-copy p:last-child {
+  color: var(--ss-color-text-faint) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-collapse {
+  border-color: var(--ss-alpha-148-163-184-160) !important;
+  background: var(--ss-alpha-255-255-255-060) !important;
+  color: var(--ss-color-border-strong) !important;
+}
+
+html body .modal-backdrop {
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+html body .modal-footer {
+  background: var(--glass-bg-strong) !important;
+  border-top-color: var(--glass-border-soft) !important;
+}
+
+/* --------------------------------------------------------------- Controles */
+html body .input,
+html body select.input,
+html body textarea.input {
+  background: var(--glass-input) !important;
+  border-color: var(--glass-border-soft) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+html body .btn-secondary,
+html body .btn-soft,
+html body .btn-ghost {
+  background: var(--glass-input) !important;
+  border-color: var(--glass-border-soft) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+html body .btn-secondary:hover,
+html body .btn-ghost:hover {
+  background: var(--ss-alpha-255-255-255-820) !important;
+}
+
+html.theme-dark body .btn-secondary:hover,
+html.theme-dark body .btn-ghost:hover {
+  background: var(--ss-alpha-52-211-172-100) !important;
+}
+
+html body .mod-chip {
+  background: var(--glass-input) !important;
+  border-color: var(--glass-border-soft) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+html body .mod-chip.is-active {
+  background: linear-gradient(135deg, var(--ss-palette-10b894), var(--ss-palette-047664)) !important;
+  border-color: transparent !important;
+  color: var(--ss-palette-fff) !important;
+}
+
+html body .table thead th {
+  background: var(--glass-header) !important;
+  border-bottom-color: var(--glass-border-soft) !important;
+}
+
+html body .table tbody tr:hover {
+  background: var(--ss-alpha-255-255-255-340) !important;
+}
+
+/* Tablas de datos: cabecera, densidad y jerarquía consistentes */
+html body .table.table-pro {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+html body .table.table-pro thead th {
+  border-bottom: 1px solid var(--ss-alpha-148-163-184-180) !important;
+  background:
+    linear-gradient(180deg, var(--ss-alpha-255-255-255-820), var(--ss-alpha-248-250-252-900)),
+    var(--glass-header) !important;
+  padding: 11px 14px !important;
+  color: var(--ss-color-text-muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+html body .table.table-pro tbody td {
+  border-bottom-color: var(--ss-alpha-148-163-184-120) !important;
+  padding: 12px 14px !important;
+  color: var(--ss-color-text-muted);
+  font-size: 0.76rem;
+  vertical-align: middle;
+}
+
+html body .table.table-pro tbody tr {
+  transition: background-color var(--ss-duration-fast) ease;
+}
+
+html body .table.table-pro tbody tr:nth-child(even) {
+  background: var(--ss-alpha-248-250-252-450);
+}
+
+html body .table.table-pro tbody tr:hover {
+  background: var(--ss-alpha-236-253-248-620) !important;
+}
+
+html body .table.table-pro tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+html body .table.table-pro td .font-mono {
+  color: var(--ss-color-text-subtle);
+  font-size: 0.65rem;
+  letter-spacing: 0.01em;
+}
+
+html body .table.table-pro th.text-right,
+html body .table.table-pro td.text-right {
+  font-variant-numeric: tabular-nums;
+}
+
+html body .table.table-pro td > a {
+  color: var(--ss-palette-047664);
+  font-weight: 700;
+}
+
+html body .table.table-pro td > a:hover {
+  text-decoration: underline;
+}
+
+html body .table.table-pro th.text-right .table-sort {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+html body .table.table-pro th.text-center .table-sort {
+  width: 100%;
+  justify-content: center;
+}
+
+html.theme-dark body .table.table-pro thead th {
+  border-bottom-color: var(--ss-alpha-148-163-184-180) !important;
+  background:
+    linear-gradient(180deg, var(--ss-alpha-15-30-49-950), var(--ss-alpha-10-21-37-980)),
+    var(--glass-header) !important;
+  color: var(--ss-color-text-faint);
+}
+
+html.theme-dark body .table.table-pro tbody td {
+  border-bottom-color: var(--ss-alpha-148-163-184-120) !important;
+  color: var(--ss-color-border-strong);
+}
+
+html.theme-dark body .table.table-pro tbody tr:nth-child(even) {
+  background: var(--ss-alpha-255-255-255-018);
+}
+
+html.theme-dark body .table.table-pro tbody tr:hover {
+  background: var(--ss-alpha-52-211-172-070) !important;
+}
+
+html.theme-dark body .table tbody tr:hover {
+  background: var(--ss-alpha-52-211-172-060) !important;
+}
+
+/* ------------------------------------------------------------------ Login */
+html body .login-shell-card {
+  background: var(--glass-bg-strong) !important;
+  border-color: var(--glass-border) !important;
+  box-shadow: 0 40px 100px -54px var(--ss-alpha-2-6-23-650);
+  -webkit-backdrop-filter: blur(28px) saturate(145%);
+  backdrop-filter: blur(28px) saturate(145%);
+}
+
+/* --------------------------------------------------------------- Móvil */
+@media (max-width: 640px) {
+  html body .app-topbar {
+    background: var(--glass-bg-strong) !important;
+  }
+
+  html body .modal-panel {
+    background: var(--glass-bg-strong) !important;
+  }
+
+  /* Evita chips cortados por scroll horizontal en móvil. */
+  html body .mod-chips,
+  html body .requests-chips {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  html body .mod-chip,
+  html body .requests-chip {
+    flex-shrink: 0;
+  }
+}
+
+/* Fallback: si el navegador no soporta blur, las superficies ya tienen alpha. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html body .card,
+  html body .mod-card,
+  html body .dashboard-kpi,
+  html body .mod-kpi,
+  html body .app-dropdown,
+  html body .app-activity-panel,
+  html body .app-command,
+  html body .toast,
+  html body .modal-panel {
+    background: var(--ss-palette-ffffff) !important;
+  }
+
+  html.theme-dark body .card,
+  html.theme-dark body .mod-card,
+  html.theme-dark body .dashboard-kpi,
+  html.theme-dark body .mod-kpi,
+  html.theme-dark body .app-dropdown,
+  html.theme-dark body .app-activity-panel,
+  html.theme-dark body .app-command,
+  html.theme-dark body .toast,
+  html.theme-dark body .modal-panel {
+    background: var(--ss-palette-0c1829) !important;
+  }
+}
+
+/* Estado activo del sidebar: siempre legible sobre el degradado teal */
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active,
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:hover,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:hover {
+  color: var(--ss-palette-ffffff) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active .sidebar-link-icon,
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:hover .sidebar-link-icon,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active .sidebar-link-icon,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:hover .sidebar-link-icon {
+  background: var(--ss-alpha-255-255-255-180) !important;
+  color: var(--ss-palette-ffffff) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active .sidebar-label,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active .sidebar-label {
+  color: var(--ss-palette-ffffff) !important;
+}
+
+/* Hover legible en sidebar claro (evita texto blanco sobre fondo claro) */
+html:not(.theme-dark) body .app-sidebar .sidebar-link:hover,
+html:not(.theme-dark) body .app-sidebar .sidebar-link:focus-visible {
+  background: var(--ss-alpha-16-184-148-100) !important;
+  border-color: var(--ss-alpha-16-184-148-180) !important;
+  color: var(--ss-palette-065e51) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link:hover .sidebar-label,
+html:not(.theme-dark) body .app-sidebar .sidebar-link:focus-visible .sidebar-label {
+  color: var(--ss-palette-065e51) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link:hover .sidebar-link-icon,
+html:not(.theme-dark) body .app-sidebar .sidebar-link:focus-visible .sidebar-link-icon {
+  color: var(--ss-palette-047664) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:hover,
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:focus-visible {
+  background: linear-gradient(135deg, var(--ss-palette-0fb894) 0%, var(--ss-palette-0b937b) 48%, var(--ss-palette-0b7f6c) 100%) !important;
+  color: var(--ss-palette-ffffff) !important;
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:hover .sidebar-label,
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:focus-visible .sidebar-label {
+  color: var(--ss-palette-ffffff) !important;
+}
+
+/* Buscador global: panel claro y legible */
+html body .app-command-backdrop {
+  background: var(--ss-alpha-2-6-23-500);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+html body .app-command {
+  border-color: var(--ss-palette-dbe4ee) !important;
+  background: var(--ss-palette-ffffff) !important;
+  box-shadow:
+    0 48px 120px -38px var(--ss-alpha-2-6-23-620),
+    0 16px 40px -30px var(--ss-alpha-2-6-23-350);
+}
+
+html body .app-command-head {
+  border-bottom-color: var(--ss-palette-e8eef5);
+  background: linear-gradient(180deg, var(--ss-palette-ffffff), var(--ss-palette-f8fbfd));
+}
+
+html body .app-command-head input {
+  color: var(--ss-color-text);
+}
+
+html body .app-command-head input::placeholder {
+  color: var(--ss-color-text-subtle);
+}
+
+html body .app-command-group-title {
+  color: var(--ss-color-text-subtle);
+  font-size: 0.65rem;
+}
+
+html body .app-command-group-title span {
+  background: var(--ss-palette-eef5f9);
+  color: var(--ss-color-text-muted);
+  font-size: 0.6rem;
+}
+
+html body .app-command-item:hover,
+html body .app-command-item.is-active {
+  background: var(--ss-palette-f0fdfa);
+}
+
+html body .app-command-item-copy strong {
+  color: var(--ss-color-text-strong);
+  font-size: 0.8rem;
+}
+
+html body .app-command-item-copy small {
+  color: var(--ss-color-text-subtle);
+  font-size: 0.68rem;
+}
+
+html body .app-command-empty span {
+  color: var(--ss-color-text-subtle);
+  font-size: 0.72rem;
+}
+
+html body .app-command-foot {
+  border-top-color: var(--ss-palette-e8eef5);
+  background: var(--ss-palette-f8fafc);
+  color: var(--ss-color-text-subtle);
+}
+
+html body .app-command-foot kbd {
+  border-color: var(--ss-color-border-strong);
+  background: var(--ss-palette-ffffff);
+  color: var(--ss-color-text-muted);
+}
+
+html.theme-dark body .app-command {
+  border-color: var(--ss-alpha-148-163-184-180) !important;
+  background: var(--ss-palette-0b1728) !important;
+}
+
+html.theme-dark body .app-command-head {
+  border-bottom-color: var(--ss-palette-1e2f47);
+  background: linear-gradient(180deg, var(--ss-palette-0d1b2d), var(--ss-palette-0a1524));
+}
+
+html.theme-dark body .app-command-head input {
+  color: var(--ss-palette-f1f5f9);
+}
+
+html.theme-dark body .app-command-head input::placeholder {
+  color: var(--ss-color-text-faint);
+}
+
+html.theme-dark body .app-command-group-title {
+  color: var(--ss-color-text-faint);
+}
+
+html.theme-dark body .app-command-group-title span {
+  background: var(--ss-palette-13253d);
+  color: var(--ss-color-border-strong);
+}
+
+html.theme-dark body .app-command-item:hover,
+html.theme-dark body .app-command-item.is-active {
+  background: var(--ss-alpha-16-184-148-120);
+}
+
+html.theme-dark body .app-command-item-copy strong {
+  color: var(--ss-palette-f1f5f9);
+}
+
+html.theme-dark body .app-command-item-copy small {
+  color: var(--ss-color-text-faint);
+}
+
+html.theme-dark body .app-command-empty span {
+  color: var(--ss-color-text-faint);
+}
+
+html.theme-dark body .app-command-foot {
+  border-top-color: var(--ss-palette-1e2f47);
+  background: var(--ss-palette-0a1524);
+  color: var(--ss-color-text-faint);
+}
+
+html.theme-dark body .app-command-foot kbd {
+  border-color: var(--ss-palette-334155);
+  background: var(--ss-palette-13253d);
+  color: var(--ss-color-border);
+}
+
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:hover .sidebar-link-icon,
+html:not(.theme-dark) body .app-sidebar .sidebar-link.sidebar-link-active:focus-visible .sidebar-link-icon {
+  color: var(--ss-palette-ffffff) !important;
+}
+
+/* Hover y foco del sidebar en tema oscuro */
+html.theme-dark body .app-sidebar .sidebar-link:hover,
+html.theme-dark body .app-sidebar .sidebar-link:focus-visible {
+  background: var(--ss-alpha-52-211-172-100) !important;
+  border-color: var(--ss-alpha-52-211-172-220) !important;
+  color: var(--ss-palette-f0fdfa) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link:hover .sidebar-label,
+html.theme-dark body .app-sidebar .sidebar-link:focus-visible .sidebar-label {
+  color: var(--ss-palette-f0fdfa) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link:hover .sidebar-link-icon,
+html.theme-dark body .app-sidebar .sidebar-link:focus-visible .sidebar-link-icon {
+  color: var(--ss-palette-6ee7b7) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:hover,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:focus-visible {
+  background: linear-gradient(135deg, var(--ss-palette-12b894) 0%, var(--ss-palette-0d9b82) 48%, var(--ss-palette-0b7f6c) 100%) !important;
+  color: var(--ss-palette-ffffff) !important;
+}
+
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:hover .sidebar-label,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:hover .sidebar-link-icon,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:focus-visible .sidebar-label,
+html.theme-dark body .app-sidebar .sidebar-link.sidebar-link-active:focus-visible .sidebar-link-icon {
+  color: var(--ss-palette-ffffff) !important;
+}

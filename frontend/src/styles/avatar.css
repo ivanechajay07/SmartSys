@@ -8,8 +8,8 @@
   flex-shrink: 0;
   place-items: center;
   border-radius: 9999px;
-  background: linear-gradient(135deg, #d1faee, #a7f3dd);
-  color: #065e51;
+  background: linear-gradient(135deg, var(--ss-palette-d1faee), var(--ss-palette-a7f3dd));
+  color: var(--ss-palette-065e51);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -37,21 +37,21 @@
   bottom: 0;
   height: 10px;
   width: 10px;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--ss-palette-ffffff);
   border-radius: 9999px;
 }
 
 .user-presence.is-online {
-  background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
+  background: var(--ss-palette-10b981);
+  box-shadow: 0 0 0 3px var(--ss-alpha-16-185-129-160);
 }
 
 .user-presence.is-offline {
-  background: #94a3b8;
+  background: var(--ss-color-text-faint);
 }
 
 html.theme-dark .user-presence {
-  border-color: #0c1829;
+  border-color: var(--ss-palette-0c1829);
 }
 
 /* Selector de avatar en perfil y usuarios */
@@ -68,14 +68,14 @@ html.theme-dark .user-presence {
 }
 
 .avatar-uploader-title {
-  color: #0f172a;
+  color: var(--ss-color-text);
   font-size: 0.8rem;
   font-weight: 800;
 }
 
 .avatar-uploader-hint {
   margin-top: 2px;
-  color: #64748b;
+  color: var(--ss-color-text-subtle);
   font-size: 0.66rem;
   line-height: 1.5;
 }
@@ -95,9 +95,9 @@ html.theme-dark .user-presence {
 }
 
 html.theme-dark .avatar-uploader-title {
-  color: #f1f5f9;
+  color: var(--ss-palette-f1f5f9);
 }
 
 html.theme-dark .avatar-uploader-hint {
-  color: #94a3b8;
+  color: var(--ss-color-text-faint);
 }

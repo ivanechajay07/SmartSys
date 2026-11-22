@@ -32,7 +32,17 @@ public class ServicioNotificacion {
         Notificacion notificacion = Dao.save(Notificacion.builder()
                 .usuario(usuario).rolDestino(rolDestino).titulo(titulo).mensaje(mensaje)
                 .tipo(tipo == null ? "INFO" : tipo).leida(false).fecha(LocalDateTime.now()).build());
-        messagingTemplate.convertAndSend("/topic/notifications", notificacion);
+        // Nunca difundir datos personales por un topic global: se envía al
+        // usuario concreto o al topic del rol destino, protegido por suscripción.
+        if (usuario != null && usuario.getEmail() != null) {
+            messagingTemplate.convertAndSendToUser(usuario.getEmail(),
+                    "/queue/notifications", notificacion);
+        } else if (rolDestino != null) {
+            messagingTemplate.convertAndSend(
+                    "/topic/notifications/" + rolDestino.name(), notificacion);
+        } else {
+            messagingTemplate.convertAndSend("/topic/notifications/general", notificacion);
+        }
         return notificacion;
     }
 
@@ -64,8 +74,13 @@ public class ServicioNotificacion {
     public Notificacion markRead(Long id, Usuario usuario) {
         Notificacion notificacion = Dao.findById(id)
                 .orElseThrow(() -> new ExcepcionNoEncontrada("Notificación no encontrada"));
-        boolean allowed = notificacion.getUsuario() == null || notificacion.getUsuario().getId().equals(usuario.getId());
-        if (!allowed) {
+        boolean own = notificacion.getUsuario() != null
+                && notificacion.getUsuario().getId().equals(usuario.getId());
+        boolean roleTarget = notificacion.getUsuario() == null
+                && notificacion.getRolDestino() != null
+                && notificacion.getRolDestino() == usuario.getRol();
+        boolean general = notificacion.getUsuario() == null && notificacion.getRolDestino() == null;
+        if (!own && !roleTarget && !general) {
             throw new ExcepcionNoEncontrada("Notificación no encontrada");
         }
         notificacion.setLeida(true);

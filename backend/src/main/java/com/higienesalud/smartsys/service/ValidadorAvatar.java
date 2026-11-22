@@ -26,7 +26,7 @@ public final class ValidadorAvatar {
                 || value.startsWith("data:image/jpeg;base64,")
                 || value.startsWith("data:image/jpg;base64,")
                 || value.startsWith("data:image/webp;base64,");
-        boolean remote = value.startsWith("https://") || value.startsWith("http://");
+        boolean remote = value.startsWith("https://");
 
         if (!dataImage && !remote) {
             throw new ExcepcionNegocio("Formato de imagen no válido. Use PNG, JPG o WEBP.");

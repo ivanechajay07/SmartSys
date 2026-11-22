@@ -10,13 +10,12 @@ import {
   ClipboardCheck,
   Clock,
   Eye,
-  LayoutGrid,
-  List,
   Package,
   Plus,
   RefreshCcw,
   Search,
   Send,
+  SlidersHorizontal,
   Trash2,
   X,
 } from 'lucide-react';
@@ -40,8 +39,10 @@ import {
   StatusBadge,
   Textarea,
 } from '@/components/ui';
-import { ModulePagination, usePagination } from '@/components/module';
+import { ModuleChips, ModulePagination, ModuleViewToggle, usePagination, useResponsiveView } from '@/components/module';
 import { FormGrid, FormHero, FormNote, FormSection, FormStats, FormTag } from '@/components/FormKit';
+import { FilterDrawer } from '@/components/FilterDrawer';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import '@/styles/modules.css';
 
 const schema = z.object({
@@ -82,7 +83,8 @@ export default function PaginaReposiciones() {
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
-  const [view, setView] = useState<'table' | 'grid'>('table');
+  const [view, setView] = useResponsiveView('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<SolicitudReposicion | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -114,7 +116,19 @@ export default function PaginaReposiciones() {
     });
   }, [data, search, status]);
 
-  const pagination = usePagination(filtered, 8, `${search}|${status}|${view}`);
+  const sorting = useTableSort(filtered, {
+    codigo: (item) => item.codigo,
+    justificacion: (item) => item.justificacion,
+    solicitante: (item) => `${item.solicitante.nombres} ${item.solicitante.apellidos}`,
+    fecha: (item) => new Date(item.fechaSolicitud).getTime(),
+    monto: (item) => Number(item.montoEstimado ?? 0),
+    estado: (item) => item.estado,
+  });
+  const pagination = usePagination(
+    sorting.rows,
+    8,
+    `${search}|${status}|${view}|${sorting.sort?.key ?? ''}|${sorting.sort?.dir ?? ''}`,
+  );
 
   const notify = (message: string) => {
     toastSuccess(message);
@@ -180,7 +194,7 @@ export default function PaginaReposiciones() {
         </div>
       </section>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <KpiCard
           label="Total"
           value={formatNumber(data.length)}
@@ -234,6 +248,15 @@ export default function PaginaReposiciones() {
             </div>
 
             <div className="mod-toolbar-controls">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+                aria-label="Abrir filtros de reposiciones"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+                {status && <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">1</span>}
+              </button>
               <div className="mod-search">
                 <Search className="mod-search-icon h-4 w-4" />
                 <Input
@@ -243,39 +266,18 @@ export default function PaginaReposiciones() {
                   onChange={(event) => setSearch(event.target.value)}
                 />
               </div>
-              <div className="mod-view-toggle" role="group" aria-label="Modo de visualización">
-                <button
-                  type="button"
-                  className={clsx(view === 'table' && 'is-active')}
-                  onClick={() => setView('table')}
-                >
-                  <List className="h-3.5 w-3.5" /> Tabla
-                </button>
-                <button
-                  type="button"
-                  className={clsx(view === 'grid' && 'is-active')}
-                  onClick={() => setView('grid')}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" /> Tarjetas
-                </button>
-              </div>
+              <ModuleViewToggle value={view} onChange={setView} />
             </div>
           </div>
 
-          <div className="mod-chips" role="tablist" aria-label="Filtrar por estado">
-            {STATUS_FILTERS.map((filter) => (
-              <button
-                key={filter.value || 'ALL'}
-                type="button"
-                role="tab"
-                aria-selected={status === filter.value}
-                className={clsx('mod-chip', status === filter.value && 'is-active')}
-                onClick={() => setStatus(filter.value)}
-              >
-                {filter.label}
-                <span className="mod-chip-count">{counts[filter.value] ?? 0}</span>
-              </button>
-            ))}
+          <div className="hidden sm:block">
+            <ModuleChips
+              filters={STATUS_FILTERS}
+              value={status}
+              onChange={setStatus}
+              counts={counts}
+              ariaLabel="Filtrar por estado"
+            />
           </div>
         </div>
 
@@ -331,15 +333,15 @@ export default function PaginaReposiciones() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table table-pro">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Justificación</th>
-                  <th>Solicitante</th>
-                  <th>Fecha</th>
-                  <th className="text-right">Monto est.</th>
-                  <th>Estado</th>
+                  <SortableTh label="Código" column="codigo" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Justificación" column="justificacion" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Solicitante" column="solicitante" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Fecha" column="fecha" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Monto est." column="monto" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Estado" column="estado" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
                   <th />
                 </tr>
               </thead>
@@ -439,7 +441,7 @@ export default function PaginaReposiciones() {
             </dl>
 
             <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="table">
+              <table className="table table-pro">
                 <thead>
                   <tr>
                     <th>Producto</th>
@@ -484,6 +486,36 @@ export default function PaginaReposiciones() {
           </div>
         )}
       </Modal>
+
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={() => {
+          setStatus('');
+          setSearch('');
+        }}
+        activeCount={status ? 1 : 0}
+        title="Filtros de reposiciones"
+      >
+        <Field label="Buscar">
+          <Input
+            placeholder="Código, justificación o solicitante"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <div>
+          <p className="label">Estado</p>
+          <ModuleChips
+            filters={STATUS_FILTERS}
+            value={status}
+            onChange={setStatus}
+            counts={counts}
+            ariaLabel="Filtrar por estado"
+          />
+        </div>
+      </FilterDrawer>
     </div>
   );
 }

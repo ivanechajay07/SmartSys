@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
@@ -56,7 +56,6 @@ const SIDEBAR_KEY = 'smartsys-sidebar-collapsed';
 
 export default function AppLayout() {
   const user = useAuth((state) => state.user);
-  const refreshToken = useAuth((state) => state.refreshToken);
   const token = useAuth((state) => state.token);
   const permisos = useAuth((state) => state.permisos);
   const setPermisos = useAuth((state) => state.setPermisos);
@@ -149,8 +148,27 @@ export default function AppLayout() {
     const flat = groups.flatMap((group) => group.items);
     if (location.pathname.startsWith('/despachos/') || location.pathname.startsWith('/dispatches/')) return 'Detalle de despacho';
     if (location.pathname.startsWith('/cumplimiento/') || location.pathname.startsWith('/compliance/')) return 'Detalle de cumplimiento';
+    if (location.pathname === '/design-system') return 'Sistema de diseño';
     return flat.find((item) => item.to === location.pathname)?.label ?? 'Higiene y Salud S.A.C.';
   }, [groups, location.pathname]);
+
+  const mobileNavItems = useMemo(() => {
+    const flat = groups.flatMap((group) => group.items);
+    const preferred = ['/', '/solicitudes', '/despachos', '/ruta-movil', '/notificaciones', '/perfil'];
+    const selected = preferred.flatMap((to) => {
+      const found = flat.find((item) => item.to === to);
+      return found ? [found] : [];
+    });
+    for (const item of flat) {
+      if (selected.length >= 4) break;
+      if (!selected.some((selectedItem) => selectedItem.to === item.to)) selected.push(item);
+    }
+    return selected.slice(0, 4);
+  }, [groups]);
+
+  useEffect(() => {
+    document.title = `${currentLabel} · SmartSys`;
+  }, [currentLabel]);
 
   const currentGroup = useMemo(
     () =>
@@ -192,7 +210,7 @@ export default function AppLayout() {
   }, [notifOpen, menuOpen]);
 
   const handleLogout = async () => {
-    await logoutRequest(refreshToken);
+    await logoutRequest();
     logout();
     navigate('/login', { replace: true });
   };
@@ -321,7 +339,14 @@ export default function AppLayout() {
   };
 
   return (
-    <div className={clsx('app-shell min-h-screen bg-slate-100', collapsed && 'is-collapsed')}>
+    <div
+      className={clsx(
+        'app-shell min-h-screen bg-slate-100',
+        collapsed && 'is-collapsed',
+        drawerOpen && 'is-drawer-open',
+      )}
+    >
+      <a href="#contenido-principal" className="skip-link">Saltar al contenido</a>
       <aside className="app-sidebar app-sidebar-desktop fixed inset-y-0 left-0 z-30 hidden lg:block">
         {renderSidebar(false)}
       </aside>
@@ -571,7 +596,7 @@ export default function AppLayout() {
                   <span className="block max-w-[150px] truncate text-xs font-semibold text-slate-800">
                     {user?.nombre}
                   </span>
-                  <span className="block text-[10px] text-slate-400">
+                  <span className="block text-xs text-slate-500">
                     {user ? ROLE_LABELS[user.rol] : ''}
                   </span>
                 </span>
@@ -650,13 +675,51 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main key={location.pathname} className="app-main app-page-enter">
-          <Outlet />
+        <main id="contenido-principal" key={location.pathname} className="app-main app-page-enter">
+          <Suspense
+            fallback={
+              <div className="app-page-loader" role="status" aria-live="polite">
+                <span className="app-page-loader-dot" aria-hidden />
+                Cargando módulo…
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
 
         <footer className="app-footer">
           Higiene y Salud S.A.C. · Operaciones registradas para auditoría
         </footer>
+
+        <nav className="app-bottom-nav" aria-label="Navegación principal móvil">
+          {mobileNavItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                className={({ isActive }) =>
+                  clsx('app-bottom-nav-item', isActive && 'is-active')
+                }
+              >
+                <Icon className="h-[18px] w-[18px]" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+          <button
+            type="button"
+            className="app-bottom-nav-item"
+            onClick={() => setDrawerOpen((open) => !open)}
+            aria-label={drawerOpen ? 'Cerrar más opciones' : 'Abrir más opciones'}
+            aria-expanded={drawerOpen}
+          >
+            <Menu className="h-[18px] w-[18px]" />
+            <span>Más</span>
+          </button>
+        </nav>
       </div>
     </div>
   );
@@ -683,6 +746,7 @@ function normalizeGlobalSearch(value: string): string {
 
 function GlobalSearch() {
   const can = useAuth((state) => state.can);
+  const permisos = useAuth((state) => state.permisos);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -696,7 +760,7 @@ function GlobalSearch() {
     () =>
       NAV_GROUPS.flatMap((group) =>
         group.items
-          .filter((item) => can(item.module, 'ver'))
+          .filter((item) => !permisos || can(item.module, 'ver'))
           .map((item) => ({
             id: `module-${item.to}`,
             group: 'Módulos',
@@ -707,7 +771,7 @@ function GlobalSearch() {
             keywords: `${item.label} ${group.title}`,
           })),
       ),
-    [can],
+    [can, permisos],
   );
 
   const cargarCatalogo = useCallback(async () => {
@@ -857,6 +921,8 @@ function GlobalSearch() {
     setActive(0);
   }, [query]);
 
+  const hasQuery = query.trim().length > 0;
+
   const grouped = useMemo(() => {
     const map = new Map<string, { item: GlobalSearchItem; index: number }[]>();
     results.forEach((item, index) => {
@@ -946,8 +1012,18 @@ function GlobalSearch() {
                 {results.length === 0 ? (
                   <div className="app-command-empty">
                     <Search className="h-5 w-5" />
-                    <p>{loading ? 'Cargando registros…' : `Sin resultados para “${query}”`}</p>
-                    <span>Prueba con un código, nombre, RUC o módulo.</span>
+                    <p>
+                      {loading
+                        ? 'Cargando registros…'
+                        : hasQuery
+                          ? `Sin resultados para "${query}"`
+                          : 'Busca módulos, productos o entidades'}
+                    </p>
+                    <span>
+                      {hasQuery
+                        ? 'Prueba con un código, nombre, RUC o módulo.'
+                        : 'Escribe para filtrar el catálogo maestro.'}
+                    </span>
                   </div>
                 ) : (
                   grouped.map(({ group, items }) => (

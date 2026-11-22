@@ -26,6 +26,8 @@ app:
     demo: false
   alerts:
     cron: "0 0 3 * * *"
+  rate-limit:
+    enabled: false
 
 logging:
   level:

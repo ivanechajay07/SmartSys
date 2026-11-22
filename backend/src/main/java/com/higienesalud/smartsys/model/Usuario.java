@@ -36,6 +36,14 @@ public class Usuario extends EntidadBase {
     @Column(name = "clave_hash", nullable = false, length = 255)
     private String passwordHash;
 
+    @JsonIgnore
+    @Column(name = "mfa_secret", length = 64)
+    private String mfaSecret;
+
+    @Builder.Default
+    @Column(name = "mfa_enabled", nullable = false)
+    private boolean mfaEnabled = false;
+
     @Column(length = 30)
     private String telefono;
 

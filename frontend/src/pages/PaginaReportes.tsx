@@ -10,12 +10,14 @@ import {
   History,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Table2,
 } from 'lucide-react';
 import { api, apiErrorMessage, downloadReport } from '@/lib/api';
 import { toastSuccess } from '@/lib/toasts';
 import { formatNumber, firstDayOfMonthISO, todayISO } from '@/lib/format';
 import { useApiQuery } from '@/lib/hooks';
+import { DatePicker } from '@/components/DatePicker';
 import { useAuth } from '@/store/auth';
 import type { ReportDefinition, ReportHistorial } from '@/types';
 import {
@@ -29,8 +31,11 @@ import {
   Modal,
   Spinner,
 } from '@/components/ui';
-import { ModuleChips, ModuleHero, ModuleKpi } from '@/components/module';
+import { ModuleChips, ModuleHero, ModuleKpi, ModuleViewToggle, useResponsiveView } from '@/components/module';
 import { FormHero, FormSection, FormStats, FormTag } from '@/components/FormKit';
+import { FormWizard } from '@/components/FormWizard';
+import { SortableTh, useTableSort } from '@/components/sortable';
+import { FilterDrawer } from '@/components/FilterDrawer';
 import '@/styles/modules.css';
 
 interface ReportData {
@@ -93,12 +98,21 @@ export default function PaginaReportes() {
   const catalog = useApiQuery<ReportDefinition[]>(() => api.get('/reports').then((r) => r.data));
   const historyQuery = useApiQuery<ReportHistorial[]>(() => api.get('/reports/history').then((r) => r.data));
   const [search, setSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [desde, setDesde] = useState(firstDayOfMonthISO());
   const [hasta, setHasta] = useState(todayISO());
   const [range, setRange] = useState('MONTH');
   const [preview, setPreview] = useState<ReportData | null>(null);
   const [previewSearch, setPreviewSearch] = useState('');
   const [exportTarget, setExportTarget] = useState<ReportDefinition | null>(null);
+  const [historyView, setHistoryView] = useResponsiveView('table');
+  const historySort = useTableSort(historyQuery.data ?? [], {
+    reporte: (item) => item.tipo,
+    formato: (item) => item.formato ?? '',
+    periodo: (item) => `${item.desde ?? ''}|${item.hasta ?? ''}`,
+    generado: (item) => item.generado,
+    usuario: (item) => item.usuario,
+  });
   const [exportFormat, setExportFormat] = useState<'csv' | 'xlsx' | 'pdf'>('xlsx');
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
@@ -213,7 +227,7 @@ export default function PaginaReportes() {
         }
       />
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="Reportes disponibles"
           value={formatNumber(all.length)}
@@ -269,15 +283,30 @@ export default function PaginaReportes() {
               <span className="font-semibold">{desde || 'inicio'}</span>
               <span>→</span>
               <span className="font-semibold">{hasta || 'hoy'}</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+                aria-label="Abrir filtros de reportes"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+                {(search || range !== 'MONTH') && (
+                  <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">
+                    {[search, range !== 'MONTH'].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
-          <ModuleChips
-            filters={RANGE_FILTERS}
-            value={range}
-            onChange={applyRange}
-            ariaLabel="Rango de fechas"
-          />
+          <div className="hidden sm:block">
+            <ModuleChips
+              filters={RANGE_FILTERS}
+              value={range}
+              onChange={applyRange}
+              ariaLabel="Rango de fechas"
+            />
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
             <Field label="Buscar reporte">
@@ -292,21 +321,19 @@ export default function PaginaReportes() {
               </div>
             </Field>
             <Field label="Desde">
-              <Input
-                type="date"
+              <DatePicker
                 value={desde}
-                onChange={(event) => {
-                  setDesde(event.target.value);
+                onChange={(value) => {
+                  setDesde(value);
                   setRange('CUSTOM');
                 }}
               />
             </Field>
             <Field label="Hasta">
-              <Input
-                type="date"
+              <DatePicker
                 value={hasta}
-                onChange={(event) => {
-                  setHasta(event.target.value);
+                onChange={(value) => {
+                  setHasta(value);
                   setRange('CUSTOM');
                 }}
               />
@@ -390,14 +417,17 @@ export default function PaginaReportes() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={historyQuery.reload}
-              className="btn btn-ghost btn-sm"
-              disabled={historyQuery.loading}
-            >
-              <RefreshCw className={clsx('h-3.5 w-3.5', historyQuery.loading && 'animate-spin')} /> Actualizar
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <ModuleViewToggle value={historyView} onChange={setHistoryView} />
+              <button
+                type="button"
+                onClick={historyQuery.reload}
+                className="btn btn-ghost btn-sm"
+                disabled={historyQuery.loading}
+              >
+                <RefreshCw className={clsx('h-3.5 w-3.5', historyQuery.loading && 'animate-spin')} /> Actualizar
+              </button>
+            </div>
           </div>
         </div>
 
@@ -412,20 +442,39 @@ export default function PaginaReportes() {
             title="Sin exportaciones registradas"
             description="Cada exportación a CSV, Excel o PDF se registrará aquí automáticamente."
           />
+        ) : historyView === 'grid' ? (
+          <div className="mod-grid report-history-grid">
+            {historySort.rows.map((item) => (
+              <article key={item.id} className="mod-card report-history-card">
+                <header>
+                  <Badge tone="brand">{item.formato?.toUpperCase() ?? '—'}</Badge>
+                  <span>{item.generado}</span>
+                </header>
+                <div>
+                  <p className="mod-card-title">{item.tipo}</p>
+                  <p className="mod-card-sub">{item.usuario}</p>
+                </div>
+                <footer>
+                  <span>Periodo</span>
+                  <strong>{item.desde || 'Inicio'} → {item.hasta || 'Hoy'}</strong>
+                </footer>
+              </article>
+            ))}
+          </div>
         ) : (
           <div className="overflow-x-auto px-5 pb-5">
-            <table className="table">
+            <table className="table table-pro">
               <thead>
                 <tr>
-                  <th>Reporte</th>
-                  <th>Formato</th>
-                  <th>Periodo</th>
-                  <th>Generado</th>
-                  <th>Usuario</th>
+                  <SortableTh label="Reporte" column="reporte" sortKey={historySort.sort?.key ?? null} direction={historySort.sort?.dir ?? null} onSort={historySort.toggle} />
+                  <SortableTh label="Formato" column="formato" sortKey={historySort.sort?.key ?? null} direction={historySort.sort?.dir ?? null} onSort={historySort.toggle} />
+                  <SortableTh label="Periodo" column="periodo" sortKey={historySort.sort?.key ?? null} direction={historySort.sort?.dir ?? null} onSort={historySort.toggle} />
+                  <SortableTh label="Generado" column="generado" sortKey={historySort.sort?.key ?? null} direction={historySort.sort?.dir ?? null} onSort={historySort.toggle} />
+                  <SortableTh label="Usuario" column="usuario" sortKey={historySort.sort?.key ?? null} direction={historySort.sort?.dir ?? null} onSort={historySort.toggle} />
                 </tr>
               </thead>
               <tbody>
-                {(historyQuery.data ?? []).map((item) => (
+                {historySort.rows.map((item) => (
                   <tr key={item.id}>
                     <td className="text-xs font-semibold text-slate-700">{item.tipo}</td>
                     <td><Badge tone="brand">{item.formato?.toUpperCase() ?? '-'}</Badge></td>
@@ -441,6 +490,55 @@ export default function PaginaReportes() {
           </div>
         )}
       </Card>
+
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={() => {
+          setSearch('');
+          applyRange('MONTH');
+        }}
+        activeCount={(search ? 1 : 0) + (range !== 'MONTH' ? 1 : 0)}
+        title="Filtros de reportes"
+      >
+        <Field label="Buscar reporte">
+          <Input
+            placeholder="Inventario, despachos, cumplimiento..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Desde">
+            <DatePicker
+              value={desde}
+              onChange={(value) => {
+                setDesde(value);
+                setRange('CUSTOM');
+              }}
+            />
+          </Field>
+          <Field label="Hasta">
+            <DatePicker
+              value={hasta}
+              onChange={(value) => {
+                setHasta(value);
+                setRange('CUSTOM');
+              }}
+            />
+          </Field>
+        </div>
+        <div>
+          <p className="label">Periodo</p>
+          <ModuleChips
+            filters={RANGE_FILTERS}
+            value={range}
+            onChange={applyRange}
+            ariaLabel="Rango de fechas"
+          />
+        </div>
+      </FilterDrawer>
 
       <Modal
         open={Boolean(preview)}
@@ -514,7 +612,7 @@ export default function PaginaReportes() {
               </div>
 
               <div className="fk-table-wrap fk-table-scroll">
-                <table className="table">
+                <table className="table table-pro">
                   <thead className="sticky top-0 z-10">
                     <tr>
                       {preview.headers.map((header, index) => (
@@ -552,69 +650,90 @@ export default function PaginaReportes() {
         icon={<Download className="h-4 w-4" />}
         onClose={() => setExportTarget(null)}
         size="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setExportTarget(null)}>
-              Cancelar
-            </Button>
-            <Button loading={exporting} onClick={runExport}>
-              <Download className="h-4 w-4" /> Descargar {exportFormat.toUpperCase()}
-            </Button>
-          </>
-        }
       >
-        <div className="space-y-4">
-          <div className="mod-callout">
-            <FileBarChart className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
-            <span>
-              El archivo incluirá la identidad corporativa de <strong>SmartSys · Higiene y Salud S.A.C.</strong>,
-              el periodo seleccionado y el total de registros.
-            </span>
-          </div>
+        <FormWizard
+          resetKey={exportTarget?.key ?? 'export'}
+          submitLabel={`Descargar ${exportFormat.toUpperCase()}`}
+          submitting={exporting}
+          onCancel={() => setExportTarget(null)}
+          onSubmit={runExport}
+          steps={[
+            {
+              id: 'formato',
+              label: 'Formato',
+              description: 'Tipo de archivo',
+              icon: <Download className="h-3.5 w-3.5" />,
+              content: (
+                <div className="space-y-4">
+                  <div className="mod-callout">
+                    <FileBarChart className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                    <span>
+                      El archivo incluirá la identidad corporativa de <strong>SmartSys · Higiene y Salud S.A.C.</strong>,
+                      el periodo seleccionado y el total de registros.
+                    </span>
+                  </div>
 
-          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Formato de exportación">
-            {EXPORT_FORMATS.map((format) => {
-              const Icon = format.icon;
-              const active = exportFormat === format.key;
-              return (
-                <button
-                  key={format.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  className={clsx('mod-export-option', active && 'is-active')}
-                  onClick={() => setExportFormat(format.key)}
-                >
-                  <span className={clsx('mod-export-icon', `mod-kpi-tone-${format.tone}`)}>
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="mod-export-label">{format.label}</span>
-                  <span className="mod-export-desc">{format.description}</span>
-                  <span className="mod-export-check" aria-hidden>
-                    {active && <CheckCircle2 className="h-4 w-4" />}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Periodo</p>
-              <p className="mt-1 text-xs font-semibold text-slate-800">{days} días</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Desde</p>
-              <p className="mt-1 text-xs font-semibold text-slate-800">{desde || 'Inicio'}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Hasta</p>
-              <p className="mt-1 text-xs font-semibold text-slate-800">{hasta || 'Hoy'}</p>
-            </div>
-          </div>
-
-          {error && <ErrorAlert message={error} />}
-        </div>
+                  <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Formato de exportación">
+                    {EXPORT_FORMATS.map((format) => {
+                      const Icon = format.icon;
+                      const active = exportFormat === format.key;
+                      return (
+                        <button
+                          key={format.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          className={clsx('mod-export-option', active && 'is-active')}
+                          onClick={() => setExportFormat(format.key)}
+                        >
+                          <span className={clsx('mod-export-icon', `mod-kpi-tone-${format.tone}`)}>
+                            <Icon className="h-5 w-5" />
+                          </span>
+                          <span className="mod-export-label">{format.label}</span>
+                          <span className="mod-export-desc">{format.description}</span>
+                          <span className="mod-export-check" aria-hidden>
+                            {active && <CheckCircle2 className="h-4 w-4" />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ),
+            },
+            {
+              id: 'resumen',
+              label: 'Resumen',
+              description: 'Periodo a exportar',
+              icon: <CalendarRange className="h-3.5 w-3.5" />,
+              content: (
+                <div className="space-y-4">
+                  <FormSection
+                    icon={<CalendarRange className="h-4 w-4" />}
+                    title="Periodo de exportación"
+                    description="Verifica el rango antes de descargar el archivo."
+                  >
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-xl border border-slate-200 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Periodo</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-800">{days} días</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Desde</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-800">{desde || 'Inicio'}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Hasta</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-800">{hasta || 'Hoy'}</p>
+                      </div>
+                    </div>
+                    {error && <ErrorAlert message={error} />}
+                  </FormSection>
+                </div>
+              ),
+            },
+          ]}
+        />
       </Modal>
     </div>
   );

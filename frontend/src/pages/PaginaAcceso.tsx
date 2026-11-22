@@ -5,6 +5,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import clsx from 'clsx';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -28,9 +29,12 @@ import {
   Sparkles,
   Sun,
 } from 'lucide-react';
-import { api, apiErrorMessage, loginRequest, toSessionUser } from '@/lib/api';
+import { api, apiErrorMessage, loginAttemptInfo, loginRequest, toSessionUser, verifyMfaRequest } from '@/lib/api';
+import type { LoginAttemptInfo } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/store/auth';
+import type { AuthResponse, MfaChallenge } from '@/types';
+import { isMfaChallenge } from '@/types';
 import { Button, ErrorAlert, Field, Input, Modal } from '@/components/ui';
 import '@/styles/login.css';
 import '@/styles/preload.css';
@@ -41,6 +45,16 @@ const schema = z.object({
 });
 
 type LoginForm = z.infer<typeof schema>;
+
+interface LoginAttemptView extends LoginAttemptInfo {
+  expirado?: boolean;
+}
+
+function formatSeconds(total: number) {
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
 
 const PRELOAD_STEPS = [
   { label: 'Credenciales', hint: 'Token y sesión segura', Icon: KeyRound },
@@ -61,6 +75,7 @@ export default function PaginaAcceso() {
   const location = useLocation();
   const setSession = useAuth((state) => state.setSession);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [loginAttempt, setLoginAttempt] = useState<LoginAttemptView | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [capsLock, setCapsLock] = useState(false);  const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [preloadStep, setPreloadStep] = useState(0);
@@ -70,8 +85,31 @@ export default function PaginaAcceso() {
   const [recoverBusy, setRecoverBusy] = useState(false);
   const [recoverSent, setRecoverSent] = useState(false);
   const [recoverError, setRecoverError] = useState<string | null>(null);
+  const [mfaChallenge, setMfaChallenge] = useState<MfaChallenge | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaBusy, setMfaBusy] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const shellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.title = 'Acceso · SmartSys';
+  }, []);
+
+  useEffect(() => {
+    if (!loginAttempt?.bloqueado) return;
+    const timer = window.setInterval(() => {
+      setLoginAttempt((previous) => {
+        if (!previous?.bloqueado) return previous;
+        const remaining = Math.max(0, (previous.segundosParaDesbloqueo ?? 0) - 1);
+        if (remaining === 0) {
+          return { ...previous, bloqueado: false, expirado: true, segundosParaDesbloqueo: 0 };
+        }
+        return { ...previous, segundosParaDesbloqueo: remaining };
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [loginAttempt?.bloqueado]);
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
   const expired = new URLSearchParams(location.search).get('expired') === '1';
@@ -86,14 +124,54 @@ export default function PaginaAcceso() {
     defaultValues: { email: '', password: '' },
   });
 
+
+  const completeSession = (auth: AuthResponse) => {
+    setSession(auth.token, toSessionUser(auth));
+    setWelcomeName(auth.nombre);
+    setMfaChallenge(null);
+    setMfaCode('');
+    setLoginAttempt(null);
+  };
+
   const onSubmit = async (values: LoginForm) => {
     setServerError(null);
     try {
       const auth = await loginRequest(values);
-      setSession(auth.token, auth.refreshToken, toSessionUser(auth));
-      setWelcomeName(auth.nombre);
+      if (isMfaChallenge(auth)) {
+        setMfaChallenge(auth);
+        setMfaCode('');
+        setMfaError(null);
+        return;
+      }
+      completeSession(auth);
     } catch (error) {
-      setServerError(apiErrorMessage(error));
+      const attempt = loginAttemptInfo(error);
+      if (attempt) {
+        setLoginAttempt({ ...attempt });
+        setServerError(null);
+      } else {
+        setLoginAttempt(null);
+        setServerError(apiErrorMessage(error));
+      }
+    }
+  };
+
+  const onSubmitMfa = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!mfaChallenge) return;
+    if (!/^\d{6}$/.test(mfaCode)) {
+      setMfaError('Ingresa el código de 6 dígitos.');
+      return;
+    }
+    setMfaBusy(true);
+    setMfaError(null);
+    try {
+      const auth = await verifyMfaRequest(mfaChallenge.mfaToken, mfaCode);
+      completeSession(auth);
+    } catch (error) {
+      setMfaError(apiErrorMessage(error));
+    } finally {
+      setMfaBusy(false);
     }
   };
 
@@ -315,7 +393,36 @@ export default function PaginaAcceso() {
                   </div>
                 )}
 
-                <form className="login-form login-reveal login-reveal-3" onSubmit={handleSubmit(onSubmit)} noValidate>
+                {loginAttempt && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className={clsx(
+                      'login-alert',
+                      loginAttempt.bloqueado ? 'login-alert-error' : 'login-alert-warning',
+                    )}
+                  >
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      {loginAttempt.expirado ? (
+                        'El bloqueo temporal terminó. Ya puedes intentar nuevamente.'
+                      ) : loginAttempt.bloqueado ? (
+                        <>
+                          Cuenta bloqueada temporalmente. Se desbloquea en{' '}
+                          <strong>{formatSeconds(loginAttempt.segundosParaDesbloqueo ?? 0)}</strong>.
+                        </>
+                      ) : loginAttempt.intentosRestantes != null ? (
+                        <>
+                          Intento fallido <strong>{loginAttempt.intentosFallidos} de 5</strong>. Te quedan{' '}
+                          <strong>{loginAttempt.intentosRestantes}</strong>{' '}
+                          {loginAttempt.intentosRestantes === 1 ? 'intento' : 'intentos'}.
+                        </>
+                      ) : null}
+                    </span>
+                  </div>
+                )}
+
+                <form className={clsx('login-form login-reveal login-reveal-3', mfaChallenge && 'hidden')} onSubmit={handleSubmit(onSubmit)} noValidate>
                   <div className="login-field">
                     <label className="login-label" htmlFor="login-email">
                       Correo corporativo
@@ -392,6 +499,54 @@ export default function PaginaAcceso() {
                   </button>
                 </form>
 
+                {mfaChallenge && (
+                  <form className="login-form login-reveal login-reveal-3" onSubmit={onSubmitMfa} noValidate>
+                    <div className="login-alert login-alert-warning">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        Verificación en dos pasos para <strong>{mfaChallenge.nombre}</strong>. Ingresa el código
+                        de 6 dígitos de tu aplicación autenticadora.
+                      </span>
+                    </div>
+                    <div className="login-field">
+                      <label className="login-label" htmlFor="login-mfa-code">
+                        Código de verificación
+                      </label>
+                      <div className="login-input-wrap">
+                        <span className="login-input-icon">
+                          <ShieldCheck className="h-4 w-4" />
+                        </span>
+                        <input
+                          id="login-mfa-code"
+                          className="login-input"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          placeholder="000000"
+                          value={mfaCode}
+                          onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                        />
+                      </div>
+                      {mfaError && <p className="login-field-error">{mfaError}</p>}
+                    </div>
+                    <button type="submit" className="login-submit" disabled={mfaBusy || mfaCode.length !== 6}>
+                      {mfaBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                      Verificar código
+                    </button>
+                    <button
+                      type="button"
+                      className="login-forgot"
+                      onClick={() => {
+                        setMfaChallenge(null);
+                        setMfaCode('');
+                        setMfaError(null);
+                      }}
+                    >
+                      Volver al inicio de sesión
+                    </button>
+                  </form>
+                )}
+
                 <p className="login-help">
                   ¿Problemas para acceder? Contacte al administrador del sistema.
                 </p>
@@ -426,8 +581,11 @@ export default function PaginaAcceso() {
           <div className="boot-preload-shell">
             <aside className="boot-preload-aside">
               <div className="boot-preload-brand">
-                <BrandMark />
-                <div>
+                <span className="boot-preload-logo" aria-hidden>
+                  <span className="boot-preload-logo-glow" />
+                  <HeartPulse className="h-5 w-5" />
+                </span>
+                <div className="boot-preload-brand-copy">
                   <p>Higiene y Salud S.A.C.</p>
                   <span>Soluciones integrales de higiene y salud</span>
                 </div>

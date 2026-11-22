@@ -21,6 +21,7 @@ frontend/.vite/
 # Pruebas y artefactos
 npm-audit.json
 .compose-test-request-id
+backups/
 
 # IDE y sistema
 .idea/
@@ -34,3 +35,5 @@ docs/
 
 # Modelo APF2 local (no se publica en GitHub)
 APF2_SmartSys.docx
+# Imágenes de referencia y capturas (no se versionan)
+*.png

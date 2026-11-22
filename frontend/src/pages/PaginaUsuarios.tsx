@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   Activity,
+  ArrowUpDown,
   Boxes,
   Camera,
   Check,
@@ -24,6 +25,7 @@ import {
   Route,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Truck,
   UserCog,
@@ -58,10 +60,12 @@ import {
   ModuleKpi,
   ModulePagination,
   ModuleViewToggle,
+  useResponsiveView,
   usePagination,
 } from '@/components/module';
 import { UserAvatar } from '@/components/UserAvatar';
 import { PermisosRolModal } from '@/components/PermisosModal';
+import { FormWizard } from '@/components/FormWizard';
 import '@/styles/modules.css';
 import '@/styles/user-modal.css';
 
@@ -135,7 +139,13 @@ export default function PaginaUsuarios() {
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [presenceFilter, setPresenceFilter] = useState('');
-  const [view, setView] = useState<'table' | 'grid'>('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = [roleFilter, presenceFilter, statusFilter].filter(Boolean).length;
+  const [view, setView] = useResponsiveView('table');
+  const [sort, setSort] = useState<{ key: 'nombre' | 'rol' | 'presencia' | 'estado' | 'acceso'; dir: 'asc' | 'desc' }>({
+    key: 'nombre',
+    dir: 'asc',
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UsuarioAdmin | null>(null);
   const [resetting, setResetting] = useState<UsuarioAdmin | null>(null);
@@ -157,7 +167,7 @@ export default function PaginaUsuarios() {
   const data = useMemo(() => users.data ?? [], [users.data]);
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return data.filter((user) => {
+    const rows = data.filter((user) => {
       const matchesRole = !roleFilter || user.rol === roleFilter;
       const matchesStatus =
         !statusFilter || (statusFilter === 'ACTIVO' ? user.activo : !user.activo);
@@ -171,12 +181,47 @@ export default function PaginaUsuarios() {
         user.email.toLowerCase().includes(term);
       return matchesRole && matchesStatus && matchesPresence && matchesTerm;
     });
-  }, [data, search, roleFilter, statusFilter, presenceFilter, onlineIds]);
+    const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
+    const direction = sort.dir === 'asc' ? 1 : -1;
+    return rows.sort((a, b) => {
+      if (sort.key === 'nombre') {
+        return collator.compare(`${a.nombres} ${a.apellidos}`, `${b.nombres} ${b.apellidos}`) * direction;
+      }
+      if (sort.key === 'rol') {
+        return collator.compare(ROLE_LABELS[a.rol], ROLE_LABELS[b.rol]) * direction;
+      }
+      if (sort.key === 'presencia') {
+        return (Number(onlineIds.has(a.id)) - Number(onlineIds.has(b.id))) * direction;
+      }
+      if (sort.key === 'estado') {
+        return (Number(a.activo) - Number(b.activo)) * direction;
+      }
+      const aTime = a.ultimoAcceso ? new Date(a.ultimoAcceso).getTime() : 0;
+      const bTime = b.ultimoAcceso ? new Date(b.ultimoAcceso).getTime() : 0;
+      return (aTime - bTime) * direction;
+    });
+  }, [data, search, roleFilter, statusFilter, presenceFilter, onlineIds, sort]);
+
+  const toggleSort = (key: typeof sort.key) => {
+    setSort((current) => ({
+      key,
+      dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const sortIcon = (key: typeof sort.key) => {
+    if (sort.key !== key) return <ArrowUpDown className="h-3 w-3" aria-hidden />;
+    return sort.dir === 'asc'
+      ? <ChevronDown className="h-3 w-3 rotate-180" aria-hidden />
+      : <ChevronDown className="h-3 w-3" aria-hidden />;
+  };
+
+  const hasPhones = useMemo(() => filtered.some((user) => Boolean(user.telefono)), [filtered]);
 
   const pagination = usePagination(
     filtered,
     8,
-    `${search}|${roleFilter}|${statusFilter}|${presenceFilter}|${view}`,
+    `${search}|${roleFilter}|${statusFilter}|${presenceFilter}|${view}|${sort.key}|${sort.dir}`,
   );
 
   const filteredRoles = useMemo(() => {
@@ -284,7 +329,7 @@ export default function PaginaUsuarios() {
 
       {section === 'users' && (
         <>
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="Usuarios"
           value={data.length}
@@ -345,6 +390,19 @@ export default function PaginaUsuarios() {
             </div>
 
             <div className="mod-toolbar-controls">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+                aria-label="Abrir filtros de usuarios"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+                {activeFilterCount > 0 && (
+                  <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
               <div className="mod-search">
                 <Search className="mod-search-icon h-4 w-4" />
                 <Input
@@ -355,7 +413,8 @@ export default function PaginaUsuarios() {
                 />
               </div>
               <Select
-                className="w-full sm:w-52"
+                className="hidden w-full sm:block sm:w-52"
+                aria-label="Filtrar por rol"
                 value={roleFilter}
                 onChange={(event) => setRoleFilter(event.target.value)}
               >
@@ -363,7 +422,8 @@ export default function PaginaUsuarios() {
                 {ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
               </Select>
               <Select
-                className="w-full sm:w-40"
+                className="hidden w-full sm:block sm:w-40"
+                aria-label="Filtrar por presencia"
                 value={presenceFilter}
                 onChange={(event) => setPresenceFilter(event.target.value)}
               >
@@ -375,28 +435,30 @@ export default function PaginaUsuarios() {
             </div>
           </div>
 
-          <ModuleChips
-            filters={[
-              { value: '', label: 'Todos' },
-              { value: 'ACTIVO', label: 'Activos' },
-              { value: 'INACTIVO', label: 'Inactivos' },
-            ]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            counts={{
-              '': data.length,
-              ACTIVO: data.filter((user) => user.activo).length,
-              INACTIVO: data.filter((user) => !user.activo).length,
-            }}
-            ariaLabel="Filtrar por estado"
-          />
+          <div className="hidden sm:block">
+            <ModuleChips
+              filters={[
+                { value: '', label: 'Todos' },
+                { value: 'ACTIVO', label: 'Activos' },
+                { value: 'INACTIVO', label: 'Inactivos' },
+              ]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              counts={{
+                '': data.length,
+                ACTIVO: data.filter((user) => user.activo).length,
+                INACTIVO: data.filter((user) => !user.activo).length,
+              }}
+              ariaLabel="Filtrar por estado"
+            />
+          </div>
         </div>
 
         {users.error && <div className="p-5"><ErrorAlert message={users.error} onRetry={users.reload} /></div>}
         {users.loading && !users.data ? (
           <Spinner />
         ) : filtered.length === 0 ? (
-          <EmptyState title="Sin usuarios" description="Ningun usuario coincide con los filtros." />
+          <EmptyState title="Sin usuarios" description="Ningún usuario coincide con los filtros." />
         ) : view === 'grid' ? (
           <div className="mod-grid">
             {pagination.pageItems.map((user) => {
@@ -404,97 +466,152 @@ export default function PaginaUsuarios() {
               const online = onlineIds.has(user.id);
               const blocked = user.bloqueadoHasta && new Date(user.bloqueadoHasta) > new Date();
               return (
-                <div key={user.id} className="mod-card">
-                  <div>
-                    <div className="mod-card-top">
-                      <div className="flex items-start gap-2.5">
-                        <UserAvatar
-                          name={`${user.nombres} ${user.apellidos}`}
-                          src={user.avatarUrl}
-                          size={38}
-                          presence={online ? 'online' : 'offline'}
-                        />
-                        <div>
-                          <p className="mod-card-title">
-                            {user.nombres} {user.apellidos}
-                            {isSelf && <span className="ml-1 text-[10px] font-semibold text-brand-700">(usted)</span>}
-                          </p>
-                          <p className="mod-card-sub">{user.email}</p>
-                        </div>
-                      </div>
-                      <Badge tone={user.rol === 'ADMINISTRADOR' ? 'indigo' : 'brand'}>
-                        {ROLE_LABELS[user.rol]}
-                      </Badge>
-                    </div>
-
-                    <div className="mod-card-metrics mt-3">
-                      <div>
-                        <span>Presencia</span>
-                        <strong className={online ? 'text-emerald-600' : 'text-slate-400'}>
-                          {online ? 'En línea' : 'Desconectado'}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Último acceso</span>
-                        <strong className="text-xs">{formatDateTime(user.ultimoAcceso)}</strong>
+                <article key={user.id} className="mod-card user-card">
+                  <header className="user-card-head">
+                    <div className="user-card-id">
+                      <UserAvatar
+                        name={`${user.nombres} ${user.apellidos}`}
+                        src={user.avatarUrl}
+                        size={44}
+                        presence={online ? 'online' : 'offline'}
+                      />
+                      <div className="user-card-id-copy">
+                        <p className="user-card-name">
+                          {user.nombres} {user.apellidos}
+                          {isSelf && <span className="user-card-self">(usted)</span>}
+                        </p>
+                        <p className="user-card-mail" title={user.email}>{user.email}</p>
                       </div>
                     </div>
+                    <Badge tone={user.rol === 'ADMINISTRADOR' ? 'indigo' : 'brand'}>
+                      {ROLE_LABELS[user.rol]}
+                    </Badge>
+                  </header>
 
-                    {blocked && (
-                      <div className="mt-2">
-                        <Badge tone="amber">Bloqueado temporalmente</Badge>
-                      </div>
-                    )}
+                  <div className="user-card-state">
+                    <span className={clsx('user-card-presence', online && 'is-on')}>
+                      <i aria-hidden />
+                      {online ? 'En línea' : 'Desconectado'}
+                    </span>
+                    <span className={clsx('user-access', user.activo ? 'is-on' : 'is-off')}>
+                      {user.activo ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                      {user.activo ? 'Acceso activo' : 'Acceso revocado'}
+                    </span>
+                    {blocked && <Badge tone="amber">Bloqueado temporalmente</Badge>}
                   </div>
 
-                  <div>
-                    <div className="mod-card-footer">
-                      <span>{user.telefono ?? 'Sin teléfono'}</span>
-                      <span className={online ? 'font-semibold text-emerald-600' : undefined}>
-                        {online ? 'Activo ahora' : user.activo ? 'Acceso habilitado' : 'Acceso revocado'}
-                      </span>
+                  <dl className={clsx('user-card-grid', !hasPhones && 'is-single')}>
+                    {hasPhones && (
+                      <div>
+                        <dt>Teléfono</dt>
+                        <dd>{user.telefono || 'No registrado'}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>Último acceso</dt>
+                      <dd>{formatDateTime(user.ultimoAcceso)}</dd>
                     </div>
-                    <div className="mt-2 flex flex-wrap justify-end gap-1">
+                  </dl>
+
+                  <footer className="user-card-foot">
+                    <span>{online ? 'Sesión activa ahora' : 'Presencia en tiempo real'}</span>
+                    <div className="table-action-group">
                       {canEdit && (
                         <>
-                          <Button variant="ghost" size="sm" disabled={avatarBusy} onClick={() => pickAvatar(user)}>
-                            <Camera className="h-3.5 w-3.5" /> Foto
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setEditing(user)}>
-                            <Pencil className="h-3.5 w-3.5" /> Editar
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setResetting(user)}>
-                            <KeyRound className="h-3.5 w-3.5" /> Clave
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="table-action table-action-photo"
+                            title="Cambiar foto"
+                            aria-label={`Cambiar foto de ${user.nombres} ${user.apellidos}`}
+                            disabled={avatarBusy}
+                            onClick={() => pickAvatar(user)}
+                          >
+                            <Camera className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="table-action table-action-edit"
+                            title="Editar usuario"
+                            aria-label={`Editar a ${user.nombres} ${user.apellidos}`}
+                            onClick={() => setEditing(user)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="table-action table-action-key"
+                            title="Restablecer contraseña"
+                            aria-label={`Restablecer contraseña de ${user.nombres} ${user.apellidos}`}
+                            onClick={() => setResetting(user)}
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={clsx(
+                              'table-action',
+                              user.activo ? 'table-action-danger' : 'table-action-success',
+                            )}
+                            title={isSelf ? 'No puede desactivar su propia cuenta' : user.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                            aria-label={user.activo ? `Desactivar a ${user.nombres} ${user.apellidos}` : `Activar a ${user.nombres} ${user.apellidos}`}
                             disabled={isSelf || busyId === user.id}
                             onClick={() => toggleStatus(user)}
                           >
-                            {user.activo ? <UserX className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                            {user.activo ? 'Desactivar' : 'Activar'}
+                            {user.activo ? <UserX className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                           </Button>
                         </>
                       )}
                     </div>
-                  </div>
-                </div>
+                  </footer>
+                </article>
               );
             })}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table users-table">
+              <colgroup>
+                <col style={{ width: hasPhones ? '26%' : '30%' }} />
+                <col style={{ width: hasPhones ? '16%' : '17%' }} />
+                {hasPhones && <col style={{ width: '6%' }} />}
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: hasPhones ? '10%' : '11%' }} />
+                <col style={{ width: '168px' }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Usuario</th>
-                  <th>Rol</th>
-                  <th>Teléfono</th>
-                  <th>Presencia</th>
-                  <th>Estado</th>
-                  <th>Último acceso</th>
-                  <th className="text-right">Acciones</th>
+                  <th aria-sort={sort.key === 'nombre' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort('nombre')} title="Ordenar por usuario">
+                      Usuario {sortIcon('nombre')}
+                    </button>
+                  </th>
+                  <th aria-sort={sort.key === 'rol' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort('rol')} title="Ordenar por rol">
+                      Rol {sortIcon('rol')}
+                    </button>
+                  </th>
+                  {hasPhones && <th>Teléfono</th>}
+                  <th aria-sort={sort.key === 'presencia' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort('presencia')} title="Ordenar por presencia">
+                      Presencia {sortIcon('presencia')}
+                    </button>
+                  </th>
+                  <th aria-sort={sort.key === 'estado' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort('estado')} title="Ordenar por estado">
+                      Estado {sortIcon('estado')}
+                    </button>
+                  </th>
+                  <th aria-sort={sort.key === 'acceso' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort('acceso')} title="Ordenar por último acceso">
+                      Último acceso {sortIcon('acceso')}
+                    </button>
+                  </th>
+                  <th className="table-actions text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -503,34 +620,38 @@ export default function PaginaUsuarios() {
                   const online = onlineIds.has(user.id);
                   return (
                     <tr key={user.id}>
-                      <td>
-                        <div className="flex items-center gap-2.5">
+                      <td className="users-cell-user">
+                        <div className="users-identity">
                           <UserAvatar
                             name={`${user.nombres} ${user.apellidos}`}
                             src={user.avatarUrl}
                             size={34}
                             presence={online ? 'online' : 'offline'}
                           />
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-800">
-                              {user.nombres} {user.apellidos} {isSelf && <span className="text-xs font-normal text-brand-700">(usted)</span>}
+                          <div className="users-identity-copy">
+                            <p className="users-name">
+                              {user.nombres} {user.apellidos} {isSelf && <span className="users-self">(usted)</span>}
                             </p>
-                            <p className="text-xs text-slate-400">{user.email}</p>
+                            <p className="users-email" title={user.email}>{user.email}</p>
                             {user.bloqueadoHasta && new Date(user.bloqueadoHasta) > new Date() && (
                               <Badge tone="amber">Bloqueado temporalmente</Badge>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td><Badge tone={user.rol === 'ADMINISTRADOR' ? 'indigo' : 'brand'}>{ROLE_LABELS[user.rol]}</Badge></td>
-                      <td className="text-xs">{user.telefono ?? '-'}</td>
-                      <td>
+                      <td className="users-cell-role"><Badge tone={user.rol === 'ADMINISTRADOR' ? 'indigo' : 'brand'}>{ROLE_LABELS[user.rol]}</Badge></td>
+                      {hasPhones && (
+                        <td className="users-cell-phone" title={user.telefono ?? 'Sin teléfono registrado'}>
+                          {user.telefono || '—'}
+                        </td>
+                      )}
+                      <td className="users-cell-presence">
                         <Badge tone={online ? 'green' : 'slate'}>
                           <Activity className="h-3 w-3" />
                           {online ? 'En línea' : 'Desconectado'}
                         </Badge>
                         {!online && lastSeen.get(user.id) && (
-                          <p className="mt-1 text-[10px] text-slate-400">
+                          <p className="users-last-seen">
                             Visto {formatDateTime(lastSeen.get(user.id))}
                           </p>
                         )}
@@ -541,28 +662,55 @@ export default function PaginaUsuarios() {
                           {user.activo ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </td>
-                      <td className="whitespace-nowrap text-xs">{formatDateTime(user.ultimoAcceso)}</td>
-                      <td>
-                        <div className="flex flex-wrap justify-end gap-1">
+                      <td className="users-cell-access">{formatDateTime(user.ultimoAcceso)}</td>
+                      <td className="table-actions">
+                        <div className="table-action-group">
                           {canEdit && (
                             <>
-                              <Button variant="ghost" size="sm" disabled={avatarBusy} onClick={() => pickAvatar(user)}>
-                                <Camera className="h-3.5 w-3.5" /> Foto
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setEditing(user)}>
-                                <Pencil className="h-3.5 w-3.5" /> Editar
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setResetting(user)}>
-                                <KeyRound className="h-3.5 w-3.5" /> Clave
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="table-action table-action-photo"
+                                title="Cambiar foto"
+                                aria-label={`Cambiar foto de ${user.nombres} ${user.apellidos}`}
+                                disabled={avatarBusy}
+                                onClick={() => pickAvatar(user)}
+                              >
+                                <Camera className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="table-action table-action-edit"
+                                title="Editar usuario"
+                                aria-label={`Editar a ${user.nombres} ${user.apellidos}`}
+                                onClick={() => setEditing(user)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="table-action table-action-key"
+                                title="Restablecer contraseña"
+                                aria-label={`Restablecer contraseña de ${user.nombres} ${user.apellidos}`}
+                                onClick={() => setResetting(user)}
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={clsx(
+                                  'table-action',
+                                  user.activo ? 'table-action-danger' : 'table-action-success',
+                                )}
+                                title={isSelf ? 'No puede desactivar su propia cuenta' : user.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                                aria-label={user.activo ? `Desactivar a ${user.nombres} ${user.apellidos}` : `Activar a ${user.nombres} ${user.apellidos}`}
                                 disabled={isSelf || busyId === user.id}
                                 onClick={() => toggleStatus(user)}
                               >
-                                {user.activo ? <UserX className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                                {user.activo ? 'Desactivar' : 'Activar'}
+                                {user.activo ? <UserX className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                               </Button>
                             </>
                           )}
@@ -624,7 +772,7 @@ export default function PaginaUsuarios() {
             <EmptyState title="Sin roles" description="Ningún rol coincide con la búsqueda." />
           ) : (
             <div className="overflow-x-auto">
-              <table className="table">
+              <table className="table table-pro">
                 <thead>
                   <tr>
                     <th>Rol</th>
@@ -791,6 +939,67 @@ export default function PaginaUsuarios() {
           notify(message);
         }}
       />
+
+      <Modal
+        open={filtersOpen}
+        title="Filtros de usuarios"
+        subtitle="Combina rol, presencia y estado de la cuenta."
+        tone="sky"
+        onClose={() => setFiltersOpen(false)}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setRoleFilter('');
+                setPresenceFilter('');
+                setStatusFilter('');
+              }}
+            >
+              Limpiar
+            </Button>
+            <Button variant="primary" onClick={() => setFiltersOpen(false)}>
+              Aplicar filtros
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Rol">
+            <Select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+              <option value="">Todos los roles</option>
+              {ROLES.map((role) => (
+                <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Presencia">
+            <Select value={presenceFilter} onChange={(event) => setPresenceFilter(event.target.value)}>
+              <option value="">Todos</option>
+              <option value="ONLINE">En línea</option>
+              <option value="OFFLINE">Desconectados</option>
+            </Select>
+          </Field>
+          <div>
+            <span className="label">Estado</span>
+            <ModuleChips
+              filters={[
+                { value: '', label: 'Todos' },
+                { value: 'ACTIVO', label: 'Activos' },
+                { value: 'INACTIVO', label: 'Inactivos' },
+              ]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              counts={{
+                '': data.length,
+                ACTIVO: data.filter((user) => user.activo).length,
+                INACTIVO: data.filter((user) => !user.activo).length,
+              }}
+              ariaLabel="Filtrar por estado"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -814,6 +1023,7 @@ function CreateUserModal({
     reset,
     watch,
     setValue,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
@@ -884,12 +1094,6 @@ function CreateUserModal({
       tone="indigo"
       onClose={onClose}
       size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" form="create-user-form" loading={isSubmitting}>Crear usuario</Button>
-        </>
-      }
     >
       <form id="create-user-form" className="cu-form" onSubmit={handleSubmit(onSubmit)} noValidate>
         {serverError && <ErrorAlert message={serverError} />}
@@ -921,121 +1125,157 @@ function CreateUserModal({
           </span>
         </div>
 
-        <section className="cu-section">
-          <header className="cu-section-head">
-            <span className="cu-section-icon"><UserRound className="h-4 w-4" /></span>
-            <div>
-              <h4>Datos personales</h4>
-              <p>Identidad del colaborador dentro de la organización</p>
-            </div>
-          </header>
-          <div className="cu-grid-2">
-            <Field label="Nombres" error={errors.nombres?.message}>
-              <Input placeholder="Ej. Ana María" autoComplete="off" {...register('nombres')} />
-            </Field>
-            <Field label="Apellidos" error={errors.apellidos?.message}>
-              <Input placeholder="Ej. Quispe Ramos" autoComplete="off" {...register('apellidos')} />
-            </Field>
-            <Field label="Correo electrónico" error={errors.email?.message}>
-              <Input type="email" placeholder="usuario@empresa.com" autoComplete="off" {...register('email')} />
-            </Field>
-            <Field label="Teléfono" error={errors.telefono?.message}>
-              <Input placeholder="+51 999 999 999" autoComplete="off" {...register('telefono')} />
-            </Field>
-          </div>
-        </section>
+        <FormWizard
+          formId="create-user-form"
+          resetKey={open}
+          submitLabel="Crear usuario"
+          submitting={isSubmitting}
+          onCancel={onClose}
+          onNext={async (index) => {
+            if (index === 0) return trigger(['nombres', 'apellidos', 'email', 'telefono']);
+            if (index === 1) return trigger('rol');
+            return true;
+          }}
+          steps={[
+            {
+              id: 'datos',
+              label: 'Datos personales',
+              description: 'Identidad y contacto',
+              icon: <UserRound className="h-3.5 w-3.5" />,
+              content: (
+                <section className="cu-section">
+                  <header className="cu-section-head">
+                    <span className="cu-section-icon"><UserRound className="h-4 w-4" /></span>
+                    <div>
+                      <h4>Datos personales</h4>
+                      <p>Identidad del colaborador dentro de la organización</p>
+                    </div>
+                  </header>
+                  <div className="cu-grid-2">
+                    <Field label="Nombres" error={errors.nombres?.message}>
+                      <Input placeholder="Ej. Ana María" autoComplete="off" {...register('nombres')} />
+                    </Field>
+                    <Field label="Apellidos" error={errors.apellidos?.message}>
+                      <Input placeholder="Ej. Quispe Ramos" autoComplete="off" {...register('apellidos')} />
+                    </Field>
+                    <Field label="Correo electrónico" error={errors.email?.message}>
+                      <Input type="email" placeholder="usuario@empresa.com" autoComplete="off" {...register('email')} />
+                    </Field>
+                    <Field label="Teléfono" error={errors.telefono?.message}>
+                      <Input placeholder="+51 999 999 999" autoComplete="off" {...register('telefono')} />
+                    </Field>
+                  </div>
+                </section>
+              ),
+            },
+            {
+              id: 'rol',
+              label: 'Rol y acceso',
+              description: 'Módulos disponibles',
+              icon: <ShieldCheck className="h-3.5 w-3.5" />,
+              content: (
+                <section className="cu-section">
+                  <header className="cu-section-head">
+                    <span className="cu-section-icon"><ShieldCheck className="h-4 w-4" /></span>
+                    <div>
+                      <h4>Rol y permisos</h4>
+                      <p>El rol define los módulos y acciones disponibles</p>
+                    </div>
+                  </header>
+                  <div className="cu-roles" role="radiogroup" aria-label="Rol del sistema">
+                    {ROLES.map((role) => {
+                      const { Icon, hint } = ROLE_META[role];
+                      const selected = rol === role;
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          className={clsx('cu-role', selected && 'is-selected')}
+                          onClick={() => setValue('rol', role, { shouldValidate: true, shouldDirty: true })}
+                        >
+                          <span className="cu-role-icon"><Icon className="h-4 w-4" /></span>
+                          <span className="cu-role-copy">
+                            <strong>{ROLE_LABELS[role]}</strong>
+                            <small>{hint}</small>
+                          </span>
+                          <span className="cu-role-check" aria-hidden>
+                            <Check className="h-3 w-3" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {errors.rol && <p className="cu-error">{errors.rol.message}</p>}
+                </section>
+              ),
+            },
+            {
+              id: 'seguridad',
+              label: 'Seguridad',
+              description: 'Clave y estado',
+              icon: <LockKeyhole className="h-3.5 w-3.5" />,
+              content: (
+                <section className="cu-section">
+                  <header className="cu-section-head">
+                    <span className="cu-section-icon"><LockKeyhole className="h-4 w-4" /></span>
+                    <div>
+                      <h4>Seguridad de la cuenta</h4>
+                      <p>Credencial inicial y estado del acceso</p>
+                    </div>
+                  </header>
 
-        <section className="cu-section">
-          <header className="cu-section-head">
-            <span className="cu-section-icon"><ShieldCheck className="h-4 w-4" /></span>
-            <div>
-              <h4>Rol y permisos</h4>
-              <p>El rol define los módulos y acciones disponibles</p>
-            </div>
-          </header>
-          <div className="cu-roles" role="radiogroup" aria-label="Rol del sistema">
-            {ROLES.map((role) => {
-              const { Icon, hint } = ROLE_META[role];
-              const selected = rol === role;
-              return (
-                <button
-                  key={role}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  className={clsx('cu-role', selected && 'is-selected')}
-                  onClick={() => setValue('rol', role, { shouldValidate: true, shouldDirty: true })}
-                >
-                  <span className="cu-role-icon"><Icon className="h-4 w-4" /></span>
-                  <span className="cu-role-copy">
-                    <strong>{ROLE_LABELS[role]}</strong>
-                    <small>{hint}</small>
-                  </span>
-                  <span className="cu-role-check" aria-hidden>
-                    <Check className="h-3 w-3" />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {errors.rol && <p className="cu-error">{errors.rol.message}</p>}
-        </section>
+                  <div className="cu-security">
+                    <Field
+                      label="Contraseña inicial"
+                      error={errors.password?.message}
+                      hint="Mínimo 10 caracteres. El usuario deberá cambiarla al ingresar."
+                    >
+                      <div className="cu-password">
+                        <Input
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Mínimo 10 caracteres"
+                          autoComplete="new-password"
+                          {...register('password')}
+                        />
+                        <button
+                          type="button"
+                          className="cu-eye"
+                          onClick={() => setShowPassword((value) => !value)}
+                          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </Field>
 
-        <section className="cu-section">
-          <header className="cu-section-head">
-            <span className="cu-section-icon"><LockKeyhole className="h-4 w-4" /></span>
-            <div>
-              <h4>Seguridad de la cuenta</h4>
-              <p>Credencial inicial y estado del acceso</p>
-            </div>
-          </header>
+                    <div className={clsx('cu-strength', `level-${passwordStrength}`)} aria-live="polite">
+                      <div className="cu-strength-bars" aria-hidden>
+                        {[1, 2, 3, 4].map((level) => (
+                          <span key={level} className={level <= passwordStrength ? 'is-on' : ''} />
+                        ))}
+                      </div>
+                      <span>{strengthLabels[passwordStrength]}</span>
+                    </div>
+                  </div>
 
-          <div className="cu-security">
-            <Field
-              label="Contraseña inicial"
-              error={errors.password?.message}
-              hint="Mínimo 10 caracteres. El usuario deberá cambiarla al ingresar."
-            >
-              <div className="cu-password">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Mínimo 10 caracteres"
-                  autoComplete="new-password"
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  className="cu-eye"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </Field>
-
-            <div className={clsx('cu-strength', `level-${passwordStrength}`)} aria-live="polite">
-              <div className="cu-strength-bars" aria-hidden>
-                {[1, 2, 3, 4].map((level) => (
-                  <span key={level} className={level <= passwordStrength ? 'is-on' : ''} />
-                ))}
-              </div>
-              <span>{strengthLabels[passwordStrength]}</span>
-            </div>
-          </div>
-
-          <label className="cu-switch">
-            <input type="checkbox" {...register('activo')} />
-            <span className="cu-switch-track" aria-hidden><i /></span>
-            <span className="cu-switch-copy">
-              <strong>Cuenta activa</strong>
-              <small>El usuario podrá iniciar sesión inmediatamente.</small>
-            </span>
-            <span className={clsx('cu-switch-state', activo ? 'is-on' : 'is-off')}>
-              {activo ? 'Activa' : 'Inactiva'}
-            </span>
-          </label>
-        </section>
+                  <label className="cu-switch">
+                    <input type="checkbox" {...register('activo')} />
+                    <span className="cu-switch-track" aria-hidden><i /></span>
+                    <span className="cu-switch-copy">
+                      <strong>Cuenta activa</strong>
+                      <small>El usuario podrá iniciar sesión inmediatamente.</small>
+                    </span>
+                    <span className={clsx('cu-switch-state', activo ? 'is-on' : 'is-off')}>
+                      {activo ? 'Activa' : 'Inactiva'}
+                    </span>
+                  </label>
+                </section>
+              ),
+            },
+          ]}
+        />
       </form>
     </Modal>
   );

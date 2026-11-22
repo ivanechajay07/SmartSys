@@ -120,7 +120,7 @@ export default function PaginaRutaMovil() {
 
       {error && <ErrorAlert message={error} />}
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="Asignaciones"
           value={formatNumber(data.length)}

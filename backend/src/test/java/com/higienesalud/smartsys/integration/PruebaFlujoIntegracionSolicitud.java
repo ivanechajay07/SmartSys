@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +70,7 @@ class PruebaFlujoIntegracionSolicitud {
         );
         String created = mockMvc.perform(post("/api/v1/requests")
                         .with(user("operativo@smartsys.local").roles("PERSONAL_OPERATIVO"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -78,12 +80,14 @@ class PruebaFlujoIntegracionSolicitud {
         long id = node.get("id").asLong();
 
         mockMvc.perform(post("/api/v1/requests/" + id + "/submit")
-                        .with(user("operativo@smartsys.local").roles("PERSONAL_OPERATIVO")))
+                        .with(user("operativo@smartsys.local").roles("PERSONAL_OPERATIVO"))
+                        .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("EN_REVISION"));
 
         mockMvc.perform(post("/api/v1/requests/" + id + "/approve")
-                        .with(user("logistica@smartsys.local").roles("JEFE_LOGISTICA")))
+                        .with(user("logistica@smartsys.local").roles("JEFE_LOGISTICA"))
+                        .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("PENDIENTE_DESPACHO"))
                 .andExpect(jsonPath("$.detalles[0].cantidadAprobada").value(10));
@@ -103,13 +107,15 @@ class PruebaFlujoIntegracionSolicitud {
         );
         String created = mockMvc.perform(post("/api/v1/requests")
                         .with(user("logistica@smartsys.local").roles("JEFE_LOGISTICA"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andReturn().getResponse().getContentAsString();
         long id = objectMapper.readTree(created).get("id").asLong();
 
         mockMvc.perform(post("/api/v1/requests/" + id + "/approve")
-                        .with(user("logistica@smartsys.local").roles("JEFE_LOGISTICA")))
+                        .with(user("logistica@smartsys.local").roles("JEFE_LOGISTICA"))
+                        .with(csrf()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(
                         "El solicitante no puede aprobar su propia solicitud"));

@@ -22,12 +22,15 @@ import java.util.HexFormat;
 public class ServicioTokenRefresco {
 
     private final TokenRefrescoDao Dao;
+    private final ServicioRevocacionTokens revocacion;
     private final long refreshDays;
     private final SecureRandom random = new SecureRandom();
 
     public ServicioTokenRefresco(TokenRefrescoDao Dao,
+                               ServicioRevocacionTokens revocacion,
                                @Value("${app.jwt.refresh-days:7}") long refreshDays) {
         this.Dao = Dao;
+        this.revocacion = revocacion;
         this.refreshDays = refreshDays;
     }
 
@@ -47,7 +50,25 @@ public class ServicioTokenRefresco {
 
     @Transactional
     public Usuario rotate(String raw) {
-        TokenRefresco token = valid(raw);
+        if (raw == null || raw.isBlank()) {
+            throw new ExcepcionNegocio("Refresh token requerido");
+        }
+        TokenRefresco token = Dao.findByTokenHash(hash(raw))
+                .orElseThrow(() -> new ExcepcionNegocio("Refresh token inválido"));
+        if (token.isRevocado()) {
+            // Reutilización de un token ya rotado: se invalidan todas las
+            // sesiones del usuario para cortar una posible cadena robada.
+            // La revocación corre en una transacción independiente porque
+            // este método termina lanzando una excepción de negocio.
+            revocacion.revokeAllFor(token.getUsuario().getId());
+            throw new ExcepcionNegocio("Refresh token reutilizado; sesiones revocadas");
+        }
+        if (token.getExpiraEn().isBefore(LocalDateTime.now())) {
+            throw new ExcepcionNegocio("Refresh token expirado");
+        }
+        if (!token.getUsuario().isActivo()) {
+            throw new ExcepcionNegocio("Usuario inactivo");
+        }
         token.setRevocado(true);
         Dao.save(token);
         return token.getUsuario();
@@ -63,7 +84,7 @@ public class ServicioTokenRefresco {
 
     @Transactional
     public void revokeAllFor(Long usuarioId) {
-        Dao.revokeAllByUsuarioId(usuarioId);
+        revocacion.revokeAllFor(usuarioId);
     }
 
     @Transactional(readOnly = true)

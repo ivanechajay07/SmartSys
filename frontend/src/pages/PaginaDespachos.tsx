@@ -4,13 +4,12 @@ import clsx from 'clsx';
 import {
   CheckCircle2,
   Eye,
-  LayoutGrid,
-  List,
   MapPin,
   Plus,
   RefreshCw,
   Route,
   Search,
+  SlidersHorizontal,
   Truck,
   XCircle,
 } from 'lucide-react';
@@ -31,8 +30,10 @@ import {
   Spinner,
   StatusBadge,
 } from '@/components/ui';
-import { ModulePagination, usePagination } from '@/components/module';
+import { ModuleChips, ModulePagination, ModuleViewToggle, usePagination, useResponsiveView } from '@/components/module';
 import { FormGrid, FormHero, FormNote, FormSection, FormStats, FormTag } from '@/components/FormKit';
+import { FilterDrawer } from '@/components/FilterDrawer';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import '@/styles/modules.css';
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
@@ -53,7 +54,8 @@ export default function PaginaDespachos() {
 
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'table' | 'grid'>('table');
+  const [view, setView] = useResponsiveView('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
   const dispatches = useApiQuery<Despacho[]>(() => api.get('/dispatches').then((r) => r.data));
@@ -83,7 +85,22 @@ export default function PaginaDespachos() {
     });
   }, [data, estado, search]);
 
-  const pagination = usePagination(filtered, 8, `${search}|${estado}|${view}`);
+  const committedQuantity = (item: Despacho) =>
+    (item.detalles ?? []).reduce((sum, det) => sum + Number(det.cantidadComprometida), 0);
+  const sorting = useTableSort(filtered, {
+    codigo: (item) => item.codigo,
+    fecha: (item) => new Date(item.fecha).getTime(),
+    entidad: (item) => item.entidad.razonSocial,
+    transportista: (item) => item.transportista ? `${item.transportista.nombres} ${item.transportista.apellidos}` : '',
+    guia: (item) => item.numeroGuia ?? '',
+    cantidad: committedQuantity,
+    estado: (item) => item.estado,
+  });
+  const pagination = usePagination(
+    sorting.rows,
+    8,
+    `${search}|${estado}|${view}|${sorting.sort?.key ?? ''}|${sorting.sort?.dir ?? ''}`,
+  );
 
   return (
     <div className="mod-page">
@@ -117,7 +134,7 @@ export default function PaginaDespachos() {
         </div>
       </section>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <KpiCard
           label="En ruta"
           value={formatNumber(counts.EN_RUTA ?? 0)}
@@ -171,6 +188,15 @@ export default function PaginaDespachos() {
             </div>
 
             <div className="mod-toolbar-controls">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+                aria-label="Abrir filtros de despachos"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+                {estado && <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">1</span>}
+              </button>
               <div className="mod-search">
                 <Search className="mod-search-icon h-4 w-4" />
                 <Input
@@ -180,39 +206,18 @@ export default function PaginaDespachos() {
                   onChange={(event) => setSearch(event.target.value)}
                 />
               </div>
-              <div className="mod-view-toggle" role="group" aria-label="Modo de visualización">
-                <button
-                  type="button"
-                  className={clsx(view === 'table' && 'is-active')}
-                  onClick={() => setView('table')}
-                >
-                  <List className="h-3.5 w-3.5" /> Tabla
-                </button>
-                <button
-                  type="button"
-                  className={clsx(view === 'grid' && 'is-active')}
-                  onClick={() => setView('grid')}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" /> Tarjetas
-                </button>
-              </div>
+              <ModuleViewToggle value={view} onChange={setView} />
             </div>
           </div>
 
-          <div className="mod-chips" role="tablist" aria-label="Filtrar por estado">
-            {STATUS_FILTERS.map((filter) => (
-              <button
-                key={filter.value || 'ALL'}
-                type="button"
-                role="tab"
-                aria-selected={estado === filter.value}
-                className={clsx('mod-chip', estado === filter.value && 'is-active')}
-                onClick={() => setEstado(filter.value)}
-              >
-                {filter.label}
-                <span className="mod-chip-count">{counts[filter.value] ?? 0}</span>
-              </button>
-            ))}
+          <div className="hidden sm:block">
+            <ModuleChips
+              filters={STATUS_FILTERS}
+              value={estado}
+              onChange={setEstado}
+              counts={counts}
+              ariaLabel="Filtrar por estado"
+            />
           </div>
         </div>
 
@@ -289,16 +294,16 @@ export default function PaginaDespachos() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table table-pro">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Fecha</th>
-                  <th>Entidad / punto</th>
-                  <th>Transportista</th>
-                  <th>Guía</th>
-                  <th className="text-right">Comprometido</th>
-                  <th>Estado</th>
+                  <SortableTh label="Código" column="codigo" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Fecha" column="fecha" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Entidad / punto" column="entidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Transportista" column="transportista" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Guía" column="guia" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Comprometido" column="cantidad" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Estado" column="estado" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
                   <th />
                 </tr>
               </thead>
@@ -360,6 +365,36 @@ export default function PaginaDespachos() {
         responsableId={user?.id ?? 0}
         onCreated={(id) => navigate(`/despachos/${id}`)}
       />
+
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={() => {
+          setEstado('');
+          setSearch('');
+        }}
+        activeCount={estado ? 1 : 0}
+        title="Filtros de despachos"
+      >
+        <Field label="Buscar">
+          <Input
+            placeholder="Código, entidad, punto o transportista"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <div>
+          <p className="label">Estado</p>
+          <ModuleChips
+            filters={STATUS_FILTERS}
+            value={estado}
+            onChange={setEstado}
+            counts={counts}
+            ariaLabel="Filtrar por estado"
+          />
+        </div>
+      </FilterDrawer>
     </div>
   );
 }
