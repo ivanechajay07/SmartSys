@@ -360,6 +360,9 @@ public class ServicioDespacho {
         } catch (IOException ex) {
             throw new ExcepcionNegocio("No se pudo leer el archivo adjunto");
         }
+        if (!firmaValida(bytes, mime)) {
+            throw new ExcepcionNegocio("El contenido del archivo no coincide con el formato declarado");
+        }
         Despacho despacho = get(id);
         ensureAssigned(despacho, usuario);
         String nombre = file.getOriginalFilename() == null ? "evidencia"
@@ -399,6 +402,30 @@ public class ServicioDespacho {
             throw new ExcepcionNegocio("El archivo de evidencia está dañado");
         }
         return new ArchivoEvidencia(evidencia.getNombreArchivo(), evidencia.getTipoMime(), data);
+    }
+
+    /**
+     * Valida la firma binaria mínima para evitar que un archivo con extensión
+     * o Content-Type falsificado se almacene como imagen/PDF.
+     */
+    private boolean firmaValida(byte[] data, String mime) {
+        if (data == null || data.length < 4) {
+            return false;
+        }
+        return switch (mime) {
+            case "image/jpeg" -> (data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xD8
+                    && (data[2] & 0xFF) == 0xFF;
+            case "image/png" -> data.length >= 8
+                    && (data[0] & 0xFF) == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47
+                    && data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A;
+            case "image/webp" -> data.length >= 12
+                    && data[0] == 'R' && data[1] == 'I' && data[2] == 'F' && data[3] == 'F'
+                    && data[8] == 'W' && data[9] == 'E' && data[10] == 'B' && data[11] == 'P';
+            case "application/pdf" -> data.length >= 5
+                    && data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F'
+                    && data[4] == '-';
+            default -> false;
+        };
     }
 
     @Transactional(readOnly = true)

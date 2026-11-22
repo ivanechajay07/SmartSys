@@ -1,12 +1,23 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mysql:
     image: mysql:8.4
     container_name: smartsys-mysql
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-smartsys}
       MYSQL_USER: ${MYSQL_USER:-smartsys}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-smartsys}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Defina MYSQL_PASSWORD en el archivo .env}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Defina MYSQL_ROOT_PASSWORD en el archivo .env}
       TZ: ${TZ:-America/Lima}
     command:
@@ -29,6 +40,11 @@ services:
     image: phpmyadmin:latest
     container_name: smartsys-phpmyadmin
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306
@@ -38,6 +54,12 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - smartsys
 
@@ -47,25 +69,40 @@ services:
       dockerfile: Dockerfile
     container_name: smartsys-backend
     restart: unless-stopped
+    init: true
+    mem_limit: 1g
+    cpus: 1.5
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *default-logging
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: ${MYSQL_DATABASE:-smartsys}
       DB_USER: ${MYSQL_USER:-smartsys}
-      DB_PASSWORD: ${MYSQL_PASSWORD:-smartsys}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Defina MYSQL_PASSWORD en el archivo .env}
       FLYWAY_ENABLED: "true"
       DDL_AUTO: validate
       JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en el archivo .env con al menos 32 caracteres}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-30}
       JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS:-7}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8082}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8082,http://127.0.0.1:8082,https://localhost:8443}
       SEED_DEMO: ${SEED_DEMO:-false}
       SEED_PASSWORD: ${SEED_PASSWORD:-Admin123!}
       ALERTS_CRON: ${ALERTS_CRON:-0 0 */6 * * *}
+      SPRINGDOC_API_DOCS_ENABLED: ${SPRINGDOC_API_DOCS_ENABLED:-false}
+      SPRINGDOC_SWAGGER_UI_ENABLED: ${SPRINGDOC_SWAGGER_UI_ENABLED:-false}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_TRUST_PROXY: ${RATE_LIMIT_TRUST_PROXY:-true}
+      RATE_LIMIT_LOGIN_PER_MINUTE: ${RATE_LIMIT_LOGIN_PER_MINUTE:-20}
+      RATE_LIMIT_FORGOT_PER_MINUTE: ${RATE_LIMIT_FORGOT_PER_MINUTE:-5}
+      RATE_LIMIT_EXPORT_PER_MINUTE: ${RATE_LIMIT_EXPORT_PER_MINUTE:-20}
+      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-true}
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75 -XX:+UseG1GC}
       TZ: ${TZ:-America/Lima}
-    ports:
-      - "${API_PORT:-8080}:8080"
     depends_on:
       mysql:
         condition: service_healthy
@@ -84,6 +121,17 @@ services:
       dockerfile: Dockerfile
     container_name: smartsys-frontend
     restart: unless-stopped
+    init: true
+    mem_limit: 256m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /run
+      - /tmp
+    logging: *default-logging
     ports:
       - "${FRONTEND_PORT:-8082}:80"
     depends_on:
@@ -98,9 +146,74 @@ services:
     networks:
       - smartsys
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: smartsys-caddy
+    restart: unless-stopped
+    profiles: ["tls"]
+    mem_limit: 128m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    ports:
+      - "${TLS_PORT:-8443}:8443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - smartsys_caddy_data:/data
+      - smartsys_caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks:
+      - smartsys
+
+  backup:
+    image: mysql:8.4
+    container_name: smartsys-backup
+    restart: unless-stopped
+    profiles: ["backup"]
+    mem_limit: 128m
+    cpus: 0.25
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Defina MYSQL_ROOT_PASSWORD en el archivo .env}
+      BACKUP_DATABASE: ${MYSQL_DATABASE:-smartsys}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      mysql:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          ts=$$(date +%F_%H%M%S)
+          file="/backups/smartsys-$$ts.sql.gz"
+          echo "[backup] generando $$file"
+          if MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysqldump -h mysql -uroot --single-transaction --routines --triggers "$$BACKUP_DATABASE" | gzip > "$$file"; then
+            echo "[backup] ok $$file"
+          else
+            echo "[backup] ERROR al generar el respaldo" >&2
+            rm -f "$$file"
+          fi
+          find /backups -name 'smartsys-*.sql.gz' -type f -mtime +$$BACKUP_RETENTION_DAYS -delete
+          sleep "$$BACKUP_INTERVAL_SECONDS"
+        done
+    networks:
+      - smartsys
+
 volumes:
   smartsys_mysql_data:
     name: smartsys_mysql_data
+  smartsys_caddy_data:
+    name: smartsys_caddy_data
+  smartsys_caddy_config:
+    name: smartsys_caddy_config
 
 networks:
   smartsys:

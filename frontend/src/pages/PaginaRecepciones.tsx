@@ -35,9 +35,11 @@ import {
   ModuleKpi,
   ModulePagination,
   ModuleViewToggle,
+  useResponsiveView,
   usePagination,
 } from '@/components/module';
 import { FormHero, FormNote, FormSection, FormStats, FormTag } from '@/components/FormKit';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import '@/styles/modules.css';
 
 const CONFORMITY_FILTERS = [
@@ -51,7 +53,7 @@ export default function PaginaRecepciones() {
   const receptions = useApiQuery<Recepcion[]>(() => api.get('/receptions').then((r) => r.data));
   const [search, setSearch] = useState('');
   const [conformity, setConformity] = useState('');
-  const [view, setView] = useState<'table' | 'grid'>('table');
+  const [view, setView] = useResponsiveView('table');
   const [selected, setSelected] = useState<Recepcion | null>(null);
 
   const data = useMemo(() => receptions.data ?? [], [receptions.data]);
@@ -82,7 +84,20 @@ export default function PaginaRecepciones() {
     });
   }, [data, search, conformity]);
 
-  const pagination = usePagination(filtered, 8, `${search}|${conformity}`);
+  const sorting = useTableSort(filtered, {
+    despacho: (item) => item.despacho.codigo,
+    entidad: (item) => item.despacho.entidad.razonSocial,
+    recibidoPor: (item) => item.recibidoPor,
+    fecha: (item) => new Date(item.fechaHora).getTime(),
+    recibido: (item) => totals(item).received,
+    rechazado: (item) => totals(item).rejected,
+    conformidad: (item) => Number(item.conforme),
+  });
+  const pagination = usePagination(
+    sorting.rows,
+    8,
+    `${search}|${conformity}|${sorting.sort?.key ?? ''}|${sorting.sort?.dir ?? ''}`,
+  );
 
   const totals = (item: Recepcion) => ({
     received: item.detalles.reduce((sum, det) => sum + Number(det.cantidadRecibida), 0),
@@ -107,7 +122,7 @@ export default function PaginaRecepciones() {
         }
       />
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="Recepciones"
           value={formatNumber(data.length)}
@@ -235,16 +250,16 @@ export default function PaginaRecepciones() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table table-pro">
               <thead>
                 <tr>
-                  <th>Despacho</th>
-                  <th>Entidad / punto</th>
-                  <th>Recibido por</th>
-                  <th>Fecha</th>
-                  <th className="text-right">Recibido</th>
-                  <th className="text-right">Rechazado</th>
-                  <th>Conformidad</th>
+                  <SortableTh label="Despacho" column="despacho" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Entidad / punto" column="entidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Recibido por" column="recibidoPor" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Fecha" column="fecha" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Recibido" column="recibido" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Rechazado" column="rechazado" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Conformidad" column="conformidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
                   <th />
                 </tr>
               </thead>
@@ -390,7 +405,7 @@ export default function PaginaRecepciones() {
               actions={<Badge tone={selected.conforme ? 'green' : 'red'}>{selected.detalles.length} {selected.detalles.length === 1 ? 'ítem' : 'ítems'}</Badge>}
             >
               <div className="fk-table-wrap">
-                <table className="table">
+                <table className="table table-pro">
                   <thead>
                     <tr>
                       <th>Producto</th>

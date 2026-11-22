@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ss-surface-0: #ffffff;
+  --ss-surface-1: #f8fafc;
+  --ss-text-1: #0f172a;
+  --ss-text-2: #475569;
+  --ss-text-3: #64748b;
+  --ss-border: #e2e8f0;
+  --ss-brand: #047664;
+  --ss-radius-md: 12px;
+  --ss-radius-lg: 16px;
+}
+
 @layer base {
   html {
     @apply font-sans;
@@ -94,9 +106,10 @@
 
   .table {
     @apply w-full border-collapse text-left text-sm;
+    font-variant-numeric: tabular-nums;
   }
   .table thead th {
-    @apply whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500;
+    @apply whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600;
   }
   .table tbody td {
     @apply border-b border-slate-100 px-3 py-3 align-middle text-slate-700;
@@ -112,6 +125,42 @@
 
 .skeleton {
   @apply animate-pulse rounded-md bg-slate-200;
+}
+
+.skip-link {
+  position: fixed;
+  left: 12px;
+  top: -56px;
+  z-index: 100;
+  border-radius: 10px;
+  background: #047664;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px -12px rgba(4, 118, 100, 0.7);
+  transition: top 0.18s ease;
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+/* Contraste mínimo para texto secundario en ambos temas. */
+.text-slate-400 {
+  color: #64748b;
+}
+
+.text-emerald-600 {
+  color: #047857;
+}
+
+html.theme-dark .text-slate-400 {
+  color: #94a3b8;
+}
+
+html.theme-dark .text-emerald-600 {
+  color: #6ee7b7;
 }
 
 /* ==========================================================================

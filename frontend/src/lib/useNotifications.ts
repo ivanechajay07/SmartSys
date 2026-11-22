@@ -19,6 +19,7 @@ export function notifyBadgeRefresh() {
 
 export function useNotifications() {
   const token = useAuth((state) => state.token);
+  const role = useAuth((state) => state.user?.rol);
   const [unread, setUnread] = useState(0);
   const [lastEvent, setLastEvent] = useState<NotificacionEvent | null>(null);
 
@@ -55,7 +56,10 @@ export function useNotifications() {
       reconnectDelay: 15_000,
       debug: () => undefined,
       onConnect: () => {
-        client.subscribe('/topic/notifications', (message) => {
+        api.get<{ count: number }>('/notifications/unread-count')
+          .then(({ data }) => setUnread(data.count))
+          .catch(() => undefined);
+        const handle = (message: { body: string }) => {
           try {
             const payload = JSON.parse(message.body) as NotificacionEvent;
             setLastEvent(payload);
@@ -63,7 +67,12 @@ export function useNotifications() {
           } catch {
             // Ignorar mensajes que no sean JSON.
           }
-        });
+        };
+        client.subscribe('/user/queue/notifications', handle);
+        client.subscribe('/topic/notifications/general', handle);
+        if (role) {
+          client.subscribe(`/topic/notifications/${role}`, handle);
+        }
       },
       onStompError: () => undefined,
       onWebSocketError: () => undefined,
@@ -72,7 +81,7 @@ export function useNotifications() {
     return () => {
       void client.deactivate();
     };
-  }, [token]);
+  }, [token, role]);
 
   return { unread, lastEvent, setUnread };
 }

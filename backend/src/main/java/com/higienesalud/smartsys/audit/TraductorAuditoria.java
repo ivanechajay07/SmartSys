@@ -19,6 +19,10 @@ public final class TraductorAuditoria {
         if (ruta.startsWith("/auth/change-password")) return "Cambió su contraseña";
         if (ruta.startsWith("/auth/profile")) return "Actualizó su perfil";
         if (ruta.startsWith("/auth/avatar")) return "Actualizó su foto de perfil";
+        if (ruta.startsWith("/auth/mfa/verify")) return exito ? "Verificó segundo factor" : "Falló verificación MFA";
+        if (ruta.startsWith("/auth/mfa/setup")) return "Configuró MFA";
+        if (ruta.startsWith("/auth/mfa/enable")) return "Activó MFA";
+        if (ruta.startsWith("/auth/mfa/disable")) return "Desactivó MFA";
 
         if (ruta.startsWith("/requests")) {
             if (ruta.endsWith("/approve")) return "Aprobó solicitud";
@@ -33,12 +37,16 @@ public final class TraductorAuditoria {
             return "Registró reposición";
         }
         if (ruta.startsWith("/schedules")) {
+            if (ruta.endsWith("/preview")) return "Consultó vista previa de programación";
             if (ruta.endsWith("/confirm")) return "Confirmó programación";
             if (ruta.endsWith("/reschedule")) return "Reprogramó entrega";
             if (ruta.endsWith("/cancel")) return "Canceló programación";
             return "Registró programación";
         }
         if (ruta.startsWith("/dispatches")) {
+            if (ruta.contains("/receptions")) return "Registró recepción";
+            if (ruta.contains("/signatures")) return "Registró firma de entrega";
+            if (ruta.contains("/events")) return "Registró evento de despacho";
             if (ruta.endsWith("/prepare")) return "Preparó despacho";
             if (ruta.endsWith("/assign")) return "Asignó transporte";
             if (ruta.endsWith("/transport-receipt")) return "Confirmó carga";
@@ -48,13 +56,14 @@ public final class TraductorAuditoria {
             if (ruta.endsWith("/cancel")) return "Canceló despacho";
             if (ruta.contains("/evidence")) return "Adjuntó evidencia";
             if (ruta.contains("/incidents")) return "Registró incidencia";
-            if (ruta.contains("/receptions")) return "Registró recepción";
             return "Registró despacho";
         }
         if (ruta.startsWith("/receptions")) return "Registró recepción";
         if (ruta.startsWith("/inventory/entries")) return "Registró ingreso";
         if (ruta.startsWith("/inventory/adjustments")) return "Registró ajuste";
-        if (ruta.startsWith("/products")) return "Registró producto";
+        if (ruta.startsWith("/products")) {
+            return "PUT".equalsIgnoreCase(method) ? "Editó producto" : "Registró producto";
+        }
         if (ruta.startsWith("/entities") && ruta.contains("/points")) return "Registró punto de entrega";
         if (ruta.startsWith("/entities")) return "Registró entidad";
         if (ruta.startsWith("/contracts") && ruta.contains("/tdrs")) return "Registró TDR";
@@ -78,6 +87,7 @@ public final class TraductorAuditoria {
     public static String modulo(String path) {
         String ruta = normalizar(path);
         if (ruta.startsWith("/auth")) return "SESIÓN";
+        if (ruta.contains("/receptions")) return "RECEPCIONES";
         if (ruta.startsWith("/requests")) return "SOLICITUDES";
         if (ruta.startsWith("/replenishments")) return "REPOSICIONES";
         if (ruta.startsWith("/schedules")) return "PROGRAMACIÓN";

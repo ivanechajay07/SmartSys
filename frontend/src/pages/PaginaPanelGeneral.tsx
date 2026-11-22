@@ -33,11 +33,12 @@ import {
   YAxis,
 } from 'recharts';
 import { api } from '@/lib/api';
-import { formatDateTime, formatNumber, formatQuantity, stateLabel } from '@/lib/format';
+import { formatNumber, formatQuantity, stateLabel } from '@/lib/format';
 import { useApiQuery } from '@/lib/hooks';
-import { ROLE_LABELS, useAuth } from '@/store/auth';
+import { useAuth } from '@/store/auth';
 import type { DashboardCharts, DashboardSummary, Inventario } from '@/types';
 import { Card, CardHeader, EmptyState, ErrorAlert, Spinner } from '@/components/ui';
+import { UserAvatar } from '@/components/UserAvatar';
 import '@/styles/dashboard.css';
 
 const PIE_COLORS = ['#05947a', '#0ea5e9', '#f59e0b', '#ef4444', '#6366f1', '#64748b', '#14b8a6'];
@@ -62,14 +63,18 @@ export default function PaginaPanelGeneral() {
   const monthly = useMemo(() => charts.data?.mensual ?? [], [charts.data]);
   const ranged = useMemo(() => (range === '3' ? monthly.slice(-3) : monthly), [monthly, range]);
   const totalEntregas = useMemo(
-    () => monthly.reduce((sum, point) => sum + Number(point.entregas), 0),
-    [monthly],
+    () => ranged.reduce((sum, point) => sum + Number(point.entregas), 0),
+    [ranged],
   );
   const totalCantidad = useMemo(
-    () => monthly.reduce((sum, point) => sum + Number(point.cantidad), 0),
-    [monthly],
+    () => ranged.reduce((sum, point) => sum + Number(point.cantidad), 0),
+    [ranged],
   );
-  const average = monthly.length ? Math.round(totalEntregas / monthly.length) : 0;
+  const average = ranged.length ? Math.round(totalEntregas / ranged.length) : 0;
+  const rangeLabel = range === '3' ? '3 meses' : '6 meses';
+  const chartHasData = ranged.some(
+    (point) => Number(point.entregas) > 0 || Number(point.cantidad) > 0,
+  );
 
   const now = new Date();
   const greeting = now.getHours() < 12 ? 'Buenos días' : now.getHours() < 19 ? 'Buenas tardes' : 'Buenas noches';
@@ -79,6 +84,10 @@ export default function PaginaPanelGeneral() {
     day: '2-digit',
     month: 'long',
   }).format(now);
+  const updatedTime = new Intl.DateTimeFormat('es-PE', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(lastUpdated);
 
   const isLoading = summary.loading || charts.loading || alerts.loading;
   const reloadAll = () => {
@@ -86,6 +95,13 @@ export default function PaginaPanelGeneral() {
     charts.reload();
     alerts.reload();
   };
+
+  const hasComplianceData = Boolean(
+    summary.data
+      && (summary.data.programacionesMes > 0
+        || summary.data.entregasMes > 0
+        || summary.data.cumplimientoPromedio > 0),
+  );
 
   const kpis: {
     label: string;
@@ -121,17 +137,21 @@ export default function PaginaPanelGeneral() {
         },
         {
           label: 'Cumplimiento promedio',
-          value: `${formatNumber(summary.data.cumplimientoPromedio, 2)}%`,
-          hint: 'Promedio de TDR evaluados',
+          value: hasComplianceData
+            ? `${formatNumber(summary.data.cumplimientoPromedio, 1)}%`
+            : '—',
+          hint: hasComplianceData ? 'Promedio de TDR evaluados' : 'Sin TDR evaluados',
           icon: <TrendingUp className="h-5 w-5" />,
-          tone:
-            summary.data.cumplimientoPromedio >= 90
+          tone: !hasComplianceData
+            ? 'brand'
+            : summary.data.cumplimientoPromedio >= 90
               ? 'brand'
               : summary.data.cumplimientoPromedio >= 70
                 ? 'amber'
                 : 'rose',
-          badge:
-            summary.data.cumplimientoPromedio >= 90
+          badge: !hasComplianceData
+            ? 'Sin datos'
+            : summary.data.cumplimientoPromedio >= 90
               ? 'En meta'
               : summary.data.cumplimientoPromedio >= 70
                 ? 'En riesgo'
@@ -154,7 +174,7 @@ export default function PaginaPanelGeneral() {
           value: formatNumber(summary.data.programacionesMes),
           hint: 'Cronograma contractual vigente',
           icon: <CalendarClock className="h-5 w-5" />,
-          tone: 'indigo',
+          tone: 'brand',
           badge: 'Cronograma',
           to: can('PROGRAMACION', 'ver') ? '/programacion' : undefined,
         },
@@ -163,7 +183,7 @@ export default function PaginaPanelGeneral() {
           value: formatNumber(summary.data.entregasMes),
           hint: 'Unidades y entregas del periodo',
           icon: <PackageCheck className="h-5 w-5" />,
-          tone: 'sky',
+          tone: 'brand',
           badge: 'Periodo',
           to: can('DESPACHOS', 'ver') ? '/despachos' : undefined,
         },
@@ -246,9 +266,22 @@ export default function PaginaPanelGeneral() {
             <span className="dashboard-live-dot" /> Centro de control · {dateLabel}
           </p>
           <h1 className="dashboard-title">Panel general</h1>
+          <div className="dashboard-greeting-row">
+            {user && (
+              <UserAvatar
+                name={user.nombre}
+                src={user.avatarUrl}
+                size={40}
+                className="dashboard-greeting-avatar"
+              />
+            )}
+            <p className="dashboard-greeting">
+              {greeting}{firstName ? `, ${firstName}` : ''}
+            </p>
+          </div>
           <p className="dashboard-sub">
-            {greeting}{firstName ? `, ${firstName}` : ''}. Pulso operativo en tiempo real de inventario,
-            solicitudes, despachos, recepciones y cumplimiento contractual.
+            Pulso operativo de inventario, solicitudes, despachos, recepciones y cumplimiento
+            contractual en tiempo real.
           </p>
           <div className="dashboard-hero-actions">
             <span className="dashboard-hero-chip">
@@ -267,13 +300,49 @@ export default function PaginaPanelGeneral() {
 
         <div className="dashboard-hero-strip">
           <span className="dashboard-strip-live"><i /> Datos en vivo</span>
-          <span><Clock className="h-3 w-3" /> Actualizado {formatDateTime(lastUpdated.toISOString())}</span>
-          <span>{dateLabel}</span>
-          <span>{user ? ROLE_LABELS[user.rol] : 'Sesión corporativa'}</span>
+          <span><Clock className="h-3 w-3" /> Actualizado {updatedTime}</span>
         </div>
       </section>
 
       {summary.error && <ErrorAlert message={summary.error} onRetry={summary.reload} />}
+
+      {summary.data && summary.data.solicitudes === 0 && (
+        <Card className="dashboard-onboarding dashboard-reveal">
+          <div className="dashboard-onboarding-intro">
+            <span className="dashboard-onboarding-icon">
+              <ClipboardCheck className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="dashboard-onboarding-kicker">Primeros pasos</p>
+              <h2>Prepara tu operación</h2>
+              <p>Completa la base maestra y registra la primera solicitud para activar el flujo logístico.</p>
+            </div>
+          </div>
+          <div className="dashboard-onboarding-actions">
+            {can('DATOS_MAESTROS', 'ver') && (
+              <Link to="/datos-maestros" className="dashboard-onboarding-action">
+                <Boxes className="h-4 w-4" />
+                <span>Productos y contratos</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+            {can('INVENTARIO', 'ver') && (
+              <Link to="/inventario" className="dashboard-onboarding-action">
+                <Boxes className="h-4 w-4" />
+                <span>Stock inicial</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+            {can('SOLICITUDES', 'crear') && (
+              <Link to="/solicitudes" className="dashboard-onboarding-action is-primary">
+                <ClipboardList className="h-4 w-4" />
+                <span>Primera solicitud</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
+        </Card>
+      )}
 
       {summary.loading && !summary.data ? (
         <Spinner />
@@ -316,8 +385,8 @@ export default function PaginaPanelGeneral() {
       <div className="grid gap-4 xl:grid-cols-[1.55fr_1fr]">
         <Card className="dashboard-reveal dashboard-reveal-2">
           <CardHeader
-            title="Estadísticas lineales"
-            subtitle="Tendencia de entregas y unidades movilizadas"
+            title="Tendencia de entregas"
+            subtitle="Entregas y unidades movilizadas en el periodo"
             actions={
               <div className="dashboard-chart-toggle" role="group" aria-label="Rango del gráfico">
                 <button
@@ -341,8 +410,11 @@ export default function PaginaPanelGeneral() {
             {charts.error && <ErrorAlert message={charts.error} onRetry={charts.reload} />}
             {charts.loading && !charts.data ? (
               <Spinner />
-            ) : monthly.length === 0 ? (
-              <EmptyState title="Sin entregas registradas" description="El gráfico aparecerá con el primer despacho entregado." />
+            ) : !chartHasData ? (
+              <EmptyState
+                title="Sin entregas en el periodo"
+                description="El gráfico aparecerá cuando existan despachos entregados en el rango seleccionado."
+              />
             ) : (
               <>
                 <div className="dashboard-chart-legend">
@@ -353,12 +425,28 @@ export default function PaginaPanelGeneral() {
                     <i style={{ background: '#0ea5e9' }} /> Unidades
                   </span>
                 </div>
-                <div className="h-72 w-full">
+                <div
+                  className="h-72 w-full"
+                  role="img"
+                  aria-label={`Tendencia de entregas y unidades en los últimos ${rangeLabel}`}
+                >
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={ranged} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+                    <LineChart data={ranged} margin={{ top: 12, right: 4, left: -18, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        yAxisId="left"
+                        tick={{ fontSize: 11, fill: '#64748b' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 11, fill: '#64748b' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
                       <Tooltip
                         formatter={(value) => formatNumber(Number(value))}
                         contentStyle={{
@@ -370,6 +458,7 @@ export default function PaginaPanelGeneral() {
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line
+                        yAxisId="left"
                         type="monotone"
                         dataKey="entregas"
                         name="Entregas"
@@ -379,6 +468,7 @@ export default function PaginaPanelGeneral() {
                         activeDot={{ r: 5 }}
                       />
                       <Line
+                        yAxisId="right"
                         type="monotone"
                         dataKey="cantidad"
                         name="Unidades"
@@ -393,7 +483,7 @@ export default function PaginaPanelGeneral() {
                 </div>
                 <div className="dashboard-chart-footer">
                   <span className="dashboard-chart-stat">
-                    <strong>{formatNumber(totalEntregas)}</strong> entregas en 6 meses
+                    <strong>{formatNumber(totalEntregas)}</strong> entregas en {rangeLabel}
                   </span>
                   <span className="dashboard-chart-stat">
                     <strong>{formatQuantity(totalCantidad)}</strong> unidades movilizadas
@@ -410,6 +500,12 @@ export default function PaginaPanelGeneral() {
         <Card className="dashboard-reveal dashboard-reveal-3">
           <CardHeader title="Cumplimiento contractual" subtitle="Indicadores de los TDR evaluados" />
           <div className="card-body">
+            {!hasComplianceData ? (
+              <EmptyState
+                title="Sin TDR evaluados"
+                description="El indicador aparecerá cuando existan programaciones y entregas en el periodo."
+              />
+            ) : (
             <div className="dashboard-gauge-wrap">
               <div
                 className="dashboard-gauge"
@@ -420,7 +516,7 @@ export default function PaginaPanelGeneral() {
                   } as CSSProperties
                 }
                 role="img"
-                aria-label={`Cumplimiento promedio ${formatNumber(compliance, 2)}%`}
+                aria-label={`Cumplimiento promedio ${formatNumber(compliance, 1)}%`}
               >
                 <div className="dashboard-gauge-center">
                   <p className="dashboard-gauge-value">{formatNumber(compliance, 1)}%</p>
@@ -451,6 +547,7 @@ export default function PaginaPanelGeneral() {
                 </div>
               </div>
             </div>
+            )}
           </div>
         </Card>
       </div>
@@ -489,7 +586,7 @@ export default function PaginaPanelGeneral() {
                   label="Stock bajo mínimo"
                   value={summary.data.stockBajo}
                   total={summary.data.productos}
-                  tone="indigo"
+                  tone="brand"
                 />
               </div>
             ) : (
@@ -526,7 +623,7 @@ export default function PaginaPanelGeneral() {
           <CardHeader title="Top productos despachados" subtitle="Volumen acumulado por producto" />
           <div className="card-body">
             {charts.data?.topProductos?.length ? (
-              <div className="h-64 w-full">
+              <div className="h-64 w-full" role="img" aria-label="Productos con mayor volumen despachado">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={charts.data.topProductos}
@@ -617,8 +714,8 @@ export default function PaginaPanelGeneral() {
         {alerts.loading && !alerts.data ? (
           <Spinner />
         ) : alerts.data && alerts.data.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="table">
+          <div className="overflow-x-auto" role="region" aria-label="Alertas de stock por producto" tabIndex={0}>
+            <table className="table table-pro">
               <thead>
                 <tr>
                   <th>Producto</th>
@@ -650,7 +747,7 @@ export default function PaginaPanelGeneral() {
                           <div className="dashboard-alert-bar-track">
                             <div className="dashboard-alert-bar-fill" style={{ width: `${coverage}%` }} />
                           </div>
-                          <span className="w-9 text-right text-[10px] font-bold text-rose-600">{coverage}%</span>
+                          <span className="w-9 text-right text-xs font-bold text-rose-700">{coverage}%</span>
                         </div>
                       </td>
                     </tr>
@@ -794,20 +891,28 @@ function StatePie({
   const total = data.reduce((sum, item) => sum + Number(item.total), 0);
   return (
     <div>
-      <div className="relative h-48 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie data={data} dataKey="total" nameKey="estado" innerRadius={48} outerRadius={72} paddingAngle={2}>
-              {data.map((entry, index) => (
-                <Cell key={entry.estado} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value, name) => [formatNumber(Number(value)), stateLabel(String(name))]} />
-          </PieChart>
-        </ResponsiveContainer>
+      <div
+        className="relative h-48 w-full"
+        role="img"
+        aria-label={`Distribución por estado: ${data
+          .map((item) => `${stateLabel(item.estado)} ${formatNumber(item.total)}`)
+          .join(', ')}`}
+      >
+        <div className="h-full w-full" aria-hidden="true">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="total" nameKey="estado" innerRadius={48} outerRadius={72} paddingAngle={2} rootTabIndex={-1}>
+                {data.map((entry, index) => (
+                  <Cell key={entry.estado} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name) => [formatNumber(Number(value)), stateLabel(String(name))]} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-xl font-extrabold tracking-tight text-slate-900">{formatNumber(total)}</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total</span>
         </div>
       </div>
       <div className="dashboard-chart-legend justify-center">

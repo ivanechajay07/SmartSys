@@ -31,5 +31,11 @@ export default defineConfig({
     css: false,
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['e2e/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/types.ts', 'src/vite-env.d.ts'],
+    },
   },
 });

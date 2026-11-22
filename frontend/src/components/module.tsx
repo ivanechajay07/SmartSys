@@ -160,6 +160,15 @@ export function ModuleProgress({ value }: { value: number }) {
 
 /* ------------------------------------------------------------- Paginación */
 
+export function useResponsiveView(initial: 'table' | 'grid' = 'table') {
+  const [view, setView] = useState<'table' | 'grid'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+      ? 'grid'
+      : initial,
+  );
+  return [view, setView] as const;
+}
+
 export function usePagination<T>(items: T[], pageSize = 8, resetKey = '') {
   const [page, setPage] = useState(1);
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));

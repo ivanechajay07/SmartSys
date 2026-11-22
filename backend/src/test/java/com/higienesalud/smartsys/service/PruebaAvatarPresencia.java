@@ -21,6 +21,9 @@ class PruebaAvatarPresencia {
         assertThatThrownBy(() -> ValidadorAvatar.normalize("javascript:alert(1)"))
                 .isInstanceOf(ExcepcionNegocio.class)
                 .hasMessageContaining("Formato de imagen");
+        assertThatThrownBy(() -> ValidadorAvatar.normalize("http://cdn.example.com/a.png"))
+                .isInstanceOf(ExcepcionNegocio.class)
+                .hasMessageContaining("Formato de imagen");
         assertThatThrownBy(() -> ValidadorAvatar.normalize("data:image/png;base64," + "A".repeat(400_000)))
                 .isInstanceOf(ExcepcionNegocio.class)
                 .hasMessageContaining("tamaño");

@@ -1,28 +1,46 @@
+import { lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { ToastViewport } from '@/components/ToastViewport';
 import { ProtectedRoute, RequirePermiso } from '@/components/guards';
 import PaginaAcceso from '@/pages/PaginaAcceso';
-import PaginaPanelGeneral from '@/pages/PaginaPanelGeneral';
-import PaginaSolicitudes from '@/pages/PaginaSolicitudes';
-import PaginaReposiciones from '@/pages/PaginaReposiciones';
-import PaginaProgramacion from '@/pages/PaginaProgramacion';
-import PaginaDespachos from '@/pages/PaginaDespachos';
-import PaginaDetalleDespacho from '@/pages/PaginaDetalleDespacho';
-import PaginaRutaMovil from '@/pages/PaginaRutaMovil';
-import PaginaRecepciones from '@/pages/PaginaRecepciones';
-import PaginaInventario from '@/pages/PaginaInventario';
-import PaginaTrazabilidad from '@/pages/PaginaTrazabilidad';
-import PaginaCumplimiento from '@/pages/PaginaCumplimiento';
-import PaginaReportes from '@/pages/PaginaReportes';
-import PaginaNotificaciones from '@/pages/PaginaNotificaciones';
-import PaginaDatosMaestros from '@/pages/PaginaDatosMaestros';
-import PaginaUsuarios from '@/pages/PaginaUsuarios';
-import PaginaAuditoria from '@/pages/PaginaAuditoria';
-import PaginaPerfil from '@/pages/PaginaPerfil';
-import PaginaNoEncontrada from '@/pages/PaginaNoEncontrada';
+import { bootstrapSession } from '@/lib/api';
+
+const PaginaPanelGeneral = lazy(() => import('@/pages/PaginaPanelGeneral'));
+const PaginaSolicitudes = lazy(() => import('@/pages/PaginaSolicitudes'));
+const PaginaReposiciones = lazy(() => import('@/pages/PaginaReposiciones'));
+const PaginaProgramacion = lazy(() => import('@/pages/PaginaProgramacion'));
+const PaginaDespachos = lazy(() => import('@/pages/PaginaDespachos'));
+const PaginaDetalleDespacho = lazy(() => import('@/pages/PaginaDetalleDespacho'));
+const PaginaRutaMovil = lazy(() => import('@/pages/PaginaRutaMovil'));
+const PaginaRecepciones = lazy(() => import('@/pages/PaginaRecepciones'));
+const PaginaInventario = lazy(() => import('@/pages/PaginaInventario'));
+const PaginaTrazabilidad = lazy(() => import('@/pages/PaginaTrazabilidad'));
+const PaginaCumplimiento = lazy(() => import('@/pages/PaginaCumplimiento'));
+const PaginaReportes = lazy(() => import('@/pages/PaginaReportes'));
+const PaginaNotificaciones = lazy(() => import('@/pages/PaginaNotificaciones'));
+const PaginaDatosMaestros = lazy(() => import('@/pages/PaginaDatosMaestros'));
+const PaginaUsuarios = lazy(() => import('@/pages/PaginaUsuarios'));
+const PaginaAuditoria = lazy(() => import('@/pages/PaginaAuditoria'));
+const PaginaPerfil = lazy(() => import('@/pages/PaginaPerfil'));
+const PaginaDesignSystem = lazy(() => import('@/pages/PaginaDesignSystem'));
+const PaginaNoEncontrada = lazy(() => import('@/pages/PaginaNoEncontrada'));
 
 export default function App() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    bootstrapSession().finally(() => setReady(true));
+  }, []);
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm font-semibold text-slate-600" role="status">
+        Restaurando sesión segura…
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
@@ -87,6 +105,7 @@ export default function App() {
             }
           />
           <Route path="/perfil" element={<RequirePermiso module="PERFIL"><PaginaPerfil /></RequirePermiso>} />
+          <Route path="/design-system" element={<RequirePermiso module="PANEL"><PaginaDesignSystem /></RequirePermiso>} />
           <Route path="/no-encontrado" element={<PaginaNoEncontrada />} />
 
           {/* Alias en inglés para enlaces históricos */}

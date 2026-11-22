@@ -17,6 +17,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -29,27 +32,53 @@ import java.util.List;
 public class ConfiguracionSeguridad {
 
     private final FiltroAutenticacionJwt FiltroAutenticacionJwt;
+    private final FiltroLimiteTasa filtroLimiteTasa;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final CookieCsrfTokenRepository csrfTokenRepository;
 
-    public ConfiguracionSeguridad(FiltroAutenticacionJwt FiltroAutenticacionJwt, CorsConfigurationSource corsConfigurationSource) {
+    public ConfiguracionSeguridad(FiltroAutenticacionJwt FiltroAutenticacionJwt,
+                                  FiltroLimiteTasa filtroLimiteTasa,
+                                  CorsConfigurationSource corsConfigurationSource,
+                                  CookieCsrfTokenRepository csrfTokenRepository) {
         this.FiltroAutenticacionJwt = FiltroAutenticacionJwt;
+        this.filtroLimiteTasa = filtroLimiteTasa;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.csrfTokenRepository = csrfTokenRepository;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // API stateless con Bearer tokens: no hay cookie de sesion que proteger con CSRF.
-                // Si en el futuro se usa cookie httpOnly para refresh token, debe reactivarse CSRF.
-                .csrf(csrf -> csrf.disable())
+                // El refresh token vive en una cookie HttpOnly; las operaciones
+                // que mutan estado requieren el token CSRF de la cookie XSRF-TOKEN.
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        // En una API stateless el JWT no debe invalidar el
+                        // token CSRF en cada request autenticado.
+                        .sessionAuthenticationStrategy((authentication, request, response) -> { })
+                        .ignoringRequestMatchers(
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/mfa/verify",
+                                "/api/v1/auth/forgot-password",
+                                "/ws/**"))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(s -> s
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                        // JWT se autentica en cada request; no debe borrar el
+                        // token CSRF como si fuera una autenticación de sesión.
+                        .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout",
+                                "/api/v1/auth/csrf",
+                                "/api/v1/auth/mfa/verify",
                                 "/api/v1/auth/forgot-password",
-                                "/actuator/health", "/actuator/info",
-                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                                "/actuator/health", "/actuator/health/**",
                                 "/ws/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                        .hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
                 .headers(headers -> headers
@@ -69,7 +98,8 @@ public class ConfiguracionSeguridad {
                             response.setContentType("application/json");
                             response.getWriter().write("{\"error\":\"No autorizado\"}");
                         }))
-                .addFilterBefore(FiltroAutenticacionJwt, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(filtroLimiteTasa, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(FiltroAutenticacionJwt, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

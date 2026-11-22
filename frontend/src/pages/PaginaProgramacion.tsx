@@ -20,6 +20,7 @@ import {
   RefreshCw,
   RotateCw,
   Search,
+  SlidersHorizontal,
   TrendingUp,
   X,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ import { toastSuccess } from '@/lib/toasts';
 import { fetchPoints } from '@/lib/catalogs';
 import { formatDate, formatNumber, formatQuantity, stateLabel } from '@/lib/format';
 import { useApiQuery } from '@/lib/hooks';
+import { DatePicker } from '@/components/DatePicker';
 import { useAuth } from '@/store/auth';
 import type {
   Contrato,
@@ -52,8 +54,10 @@ import {
   StatusBadge,
   Textarea,
 } from '@/components/ui';
-import { ModulePagination, usePagination } from '@/components/module';
+import { ModuleChips, ModulePagination, usePagination } from '@/components/module';
 import { FormGrid, FormHero, FormNote, FormSection, FormStats, FormTag } from '@/components/FormKit';
+import { FilterDrawer } from '@/components/FilterDrawer';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import { ScheduleCalendar } from '@/components/ScheduleCalendar';
 import '@/styles/modules.css';
 
@@ -75,6 +79,7 @@ export default function PaginaProgramacion() {
   const [entidadId, setEntidadId] = useState('');
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'split' | 'table' | 'grid' | 'calendar'>('split');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<ProgramacionAbastecimiento | null>(null);
@@ -240,7 +245,20 @@ export default function PaginaProgramacion() {
           </div>
 
           <div className="mod-toolbar-filters">
-            <div className="mod-search">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm sm:hidden"
+              onClick={() => setFiltersOpen(true)}
+              aria-label="Abrir filtros de programación"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+              {(search || entidadId || estado) && (
+                <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">
+                  {[search, entidadId, estado].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+            <div className="mod-search hidden sm:flex">
               <Search className="mod-search-icon h-4 w-4" />
               <Input
                 className="pl-9"
@@ -250,7 +268,7 @@ export default function PaginaProgramacion() {
               />
             </div>
             <Select
-              className="mod-entity-filter"
+              className="mod-entity-filter hidden sm:block"
               value={entidadId}
               onChange={(event) => setEntidadId(event.target.value)}
             >
@@ -294,20 +312,14 @@ export default function PaginaProgramacion() {
             </div>
           </div>
 
-          <div className="mod-chips" role="tablist" aria-label="Filtrar por estado">
-            {STATUS_FILTERS.map((filter) => (
-              <button
-                key={filter.value || 'ALL'}
-                type="button"
-                role="tab"
-                aria-selected={estado === filter.value}
-                className={clsx('mod-chip', estado === filter.value && 'is-active')}
-                onClick={() => setEstado(filter.value)}
-              >
-                {filter.label}
-                <span className="mod-chip-count">{counts[filter.value] ?? 0}</span>
-              </button>
-            ))}
+          <div className="hidden sm:block">
+            <ModuleChips
+              filters={STATUS_FILTERS}
+              value={estado}
+              onChange={setEstado}
+              counts={counts}
+              ariaLabel="Filtrar por estado"
+            />
           </div>
         </div>
 
@@ -474,6 +486,45 @@ export default function PaginaProgramacion() {
           setSelected(null);
         }}
       />
+
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={() => {
+          setSearch('');
+          setEntidadId('');
+          setEstado('');
+        }}
+        activeCount={[search, entidadId, estado].filter(Boolean).length}
+        title="Filtros de programación"
+      >
+        <Field label="Buscar">
+          <Input
+            placeholder="Entidad, punto o producto"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <Field label="Entidad">
+          <Select value={entidadId} onChange={(event) => setEntidadId(event.target.value)}>
+            <option value="">Todas las entidades</option>
+            {(entities.data ?? []).map((entity) => (
+              <option key={entity.id} value={entity.id}>{entity.razonSocial}</option>
+            ))}
+          </Select>
+        </Field>
+        <div>
+          <p className="label">Estado</p>
+          <ModuleChips
+            filters={STATUS_FILTERS}
+            value={estado}
+            onChange={setEstado}
+            counts={counts}
+            ariaLabel="Filtrar por estado"
+          />
+        </div>
+      </FilterDrawer>
     </div>
   );
 }
@@ -520,23 +571,33 @@ function ScheduleTable({
   onSelect: (schedule: ProgramacionAbastecimiento) => void;
   compact?: boolean;
 }) {
+  const sorting = useTableSort(items, {
+    fecha: (item) => new Date(item.fechaProgramada).getTime(),
+    entidad: (item) => item.entidad.razonSocial,
+    producto: (item) => item.producto.nombre,
+    programado: (item) => Number(item.cantidadProgramada),
+    entregado: (item) => Number(item.cantidadEntregada),
+    saldo: (item) => Number(item.saldoPendiente),
+    estado: (item) => item.estado,
+  });
+
   return (
     <div className="overflow-x-auto">
-      <table className="table">
+      <table className="table table-pro">
         <thead>
           <tr>
-            <th>Fecha</th>
-            <th>Entidad / punto</th>
-            <th>Producto</th>
-            {!compact && <th className="text-right">Programado</th>}
-            {!compact && <th className="text-right">Entregado</th>}
-            <th className="text-right">Saldo</th>
-            <th>Estado</th>
+            <SortableTh label="Fecha" column="fecha" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+            <SortableTh label="Entidad / punto" column="entidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+            <SortableTh label="Producto" column="producto" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+            {!compact && <SortableTh label="Programado" column="programado" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />}
+            {!compact && <SortableTh label="Entregado" column="entregado" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />}
+            <SortableTh label="Saldo" column="saldo" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+            <SortableTh label="Estado" column="estado" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
             <th />
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
+          {sorting.rows.map((item) => (
             <tr key={item.id} className="mod-row" onClick={() => onSelect(item)}>
               <td className="whitespace-nowrap font-semibold text-slate-800">
                 {formatDate(item.fechaProgramada)}
@@ -803,7 +864,7 @@ function GenerateScheduleModal({
             actions={<Badge tone="brand">{previewCount} entregas</Badge>}
           >
             <div className="fk-table-wrap">
-              <table className="table">
+              <table className="table table-pro">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -981,7 +1042,7 @@ function ScheduleDetail({
               </div>
 
               <Field label="Nueva fecha">
-                <Input type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} />
+                <DatePicker value={fecha} onChange={setFecha} />
               </Field>
               <Field label="Motivo" className="mt-2">
                 <Input value={motivo} onChange={(event) => setMotivo(event.target.value)} placeholder="Motivo del cambio" />

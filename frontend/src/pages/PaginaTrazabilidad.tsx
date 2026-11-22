@@ -10,6 +10,7 @@ import {
   PackageCheck,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Truck,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -22,6 +23,7 @@ import {
   CardHeader,
   EmptyState,
   ErrorAlert,
+  Field,
   Input,
   Spinner,
 } from '@/components/ui';
@@ -29,8 +31,12 @@ import {
   ModuleHero,
   ModuleKpi,
   ModulePagination,
+  ModuleViewToggle,
   usePagination,
+  useResponsiveView,
 } from '@/components/module';
+import { SortableTh, useTableSort } from '@/components/sortable';
+import { FilterDrawer } from '@/components/FilterDrawer';
 import '@/styles/modules.css';
 
 type Tab = 'orders' | 'entries' | 'exits';
@@ -70,6 +76,8 @@ export default function PaginaTrazabilidad() {
   const [tab, setTab] = useState<Tab>('orders');
   const [search, setSearch] = useState('');
   const [expandedEntry, setExpandedEntry] = useState<number | null>(null);
+  const [view, setView] = useResponsiveView('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const orders = useApiQuery<OrdenServicio[]>(() => api.get('/service-orders').then((r) => r.data));
   const entries = useApiQuery<IngresoAlmacen[]>(() => api.get('/warehouse/entries').then((r) => r.data));
@@ -101,9 +109,49 @@ export default function PaginaTrazabilidad() {
     [exits.data, term],
   );
 
-  const ordersPagination = usePagination(filteredOrders, 8, term);
-  const entriesPagination = usePagination(filteredEntries, 8, term);
-  const exitsPagination = usePagination(filteredExits, 8, term);
+  const ordersSort = useTableSort(filteredOrders, {
+    id: (item) => item.id,
+    cliente: (item) => item.clienteNombre,
+    ruc: (item) => item.clienteRuc,
+    servicio: (item) => item.tipoServicio ?? '',
+    fecha: (item) => new Date(item.fechaServicio).getTime(),
+    solicitud: (item) => item.solicitudCodigo ?? '',
+    estado: (item) => item.estado,
+  });
+  const entriesSort = useTableSort(filteredEntries, {
+    id: (item) => item.id,
+    fecha: (item) => new Date(item.fecha).getTime(),
+    guia: (item) => item.guia ?? '',
+    proveedor: (item) => item.proveedor ?? '',
+    productos: (item) => productosIngreso(item),
+    usuario: (item) => item.usuario ?? '',
+    estado: (item) => Number(item.estado),
+  });
+  const exitsSort = useTableSort(filteredExits, {
+    id: (item) => item.id,
+    fecha: (item) => new Date(item.fecha).getTime(),
+    guia: (item) => item.guia ?? '',
+    tipo: (item) => item.tipoEntrega ?? '',
+    despacho: (item) => item.despachoCodigo ?? '',
+    productos: (item) => productosSalida(item),
+    usuario: (item) => item.usuario ?? '',
+    estado: (item) => Number(item.estado),
+  });
+  const ordersPagination = usePagination(
+    ordersSort.rows,
+    8,
+    `${term}|${view}|${ordersSort.sort?.key ?? ''}|${ordersSort.sort?.dir ?? ''}`,
+  );
+  const entriesPagination = usePagination(
+    entriesSort.rows,
+    8,
+    `${term}|${view}|${entriesSort.sort?.key ?? ''}|${entriesSort.sort?.dir ?? ''}`,
+  );
+  const exitsPagination = usePagination(
+    exitsSort.rows,
+    8,
+    `${term}|${view}|${exitsSort.sort?.key ?? ''}|${exitsSort.sort?.dir ?? ''}`,
+  );
 
   const reloadAll = () => {
     orders.reload();
@@ -205,14 +253,26 @@ export default function PaginaTrazabilidad() {
                 {filtered.length} registro{filtered.length === 1 ? '' : 's'} encontrado{filtered.length === 1 ? '' : 's'}
               </p>
             </div>
-            <div className="mod-search">
-              <Search className="mod-search-icon h-4 w-4" />
-              <Input
-                className="pl-9"
-                placeholder={SEARCH_PLACEHOLDER[tab]}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
+            <div className="mod-toolbar-controls">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+                aria-label="Abrir filtros de trazabilidad"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+                {search && <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">1</span>}
+              </button>
+              <div className="mod-search hidden sm:flex">
+                <Search className="mod-search-icon h-4 w-4" />
+                <Input
+                  className="pl-9"
+                  placeholder={SEARCH_PLACEHOLDER[tab]}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              <ModuleViewToggle value={view} onChange={setView} />
             </div>
           </div>
         </div>
@@ -236,19 +296,53 @@ export default function PaginaTrazabilidad() {
                 ? 'Ninguna orden coincide con la búsqueda.'
                 : 'Cada nueva solicitud de material genera automáticamente una orden de servicio.'}
             />
+          ) : view === 'grid' ? (
+            <>
+              <div className="mod-grid trace-grid">
+                {ordersPagination.pageItems.map((item) => (
+                  <article key={item.id} className="mod-card trace-card">
+                    <header>
+                      <span className="mod-code">#{item.id}</span>
+                      <Badge tone={item.estado === 'ACTIVO' ? 'green' : 'slate'}>{item.estado}</Badge>
+                    </header>
+                    <div>
+                      <p className="mod-card-title">{item.clienteNombre}</p>
+                      <p className="mod-card-sub">RUC {item.clienteRuc}</p>
+                    </div>
+                    <dl className="trace-card-meta">
+                      <div><dt>Servicio</dt><dd>{item.tipoServicio ?? '-'}</dd></div>
+                      <div><dt>Fecha</dt><dd>{formatDate(item.fechaServicio)}</dd></div>
+                    </dl>
+                    <footer>
+                      <span>Solicitud</span>
+                      <strong>{item.solicitudCodigo ?? '-'}</strong>
+                    </footer>
+                  </article>
+                ))}
+              </div>
+              <ModulePagination
+                page={ordersPagination.page}
+                pageCount={ordersPagination.pageCount}
+                total={ordersPagination.total}
+                from={ordersPagination.from}
+                to={ordersPagination.to}
+                pageSize={ordersPagination.pageSize}
+                onPageChange={ordersPagination.setPage}
+              />
+            </>
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="table">
+                <table className="table table-pro">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Cliente</th>
-                      <th>RUC</th>
-                      <th>Servicio</th>
-                      <th>Fecha</th>
-                      <th>Solicitud</th>
-                      <th>Estado</th>
+                      <SortableTh label="ID" column="id" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
+                      <SortableTh label="Cliente" column="cliente" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
+                      <SortableTh label="RUC" column="ruc" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
+                      <SortableTh label="Servicio" column="servicio" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
+                      <SortableTh label="Fecha" column="fecha" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
+                      <SortableTh label="Solicitud" column="solicitud" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
+                      <SortableTh label="Estado" column="estado" sortKey={ordersSort.sort?.key ?? null} direction={ordersSort.sort?.dir ?? null} onSort={ordersSort.toggle} />
                     </tr>
                   </thead>
                   <tbody>
@@ -288,20 +382,53 @@ export default function PaginaTrazabilidad() {
                 ? 'Ningún ingreso coincide con la búsqueda.'
                 : 'Los ingresos registrados en Inventario aparecerán aquí con su guía y proveedor.'}
             />
+          ) : view === 'grid' ? (
+            <>
+              <div className="mod-grid trace-grid">
+                {entriesPagination.pageItems.map((item) => (
+                  <article key={item.id} className="mod-card trace-card">
+                    <header>
+                      <span className="mod-code">#{item.id}</span>
+                      <Badge tone={item.estado ? 'green' : 'slate'}>
+                        {item.estado ? 'Activo' : 'Anulado'}
+                      </Badge>
+                    </header>
+                    <div>
+                      <p className="mod-card-title">{item.proveedor ?? 'Sin proveedor'}</p>
+                      <p className="mod-card-sub">Guía {item.guia ?? '-'}</p>
+                    </div>
+                    <dl className="trace-card-meta">
+                      <div><dt>Fecha</dt><dd>{formatDate(item.fecha)}</dd></div>
+                      <div><dt>Usuario</dt><dd>{item.usuario || '-'}</dd></div>
+                    </dl>
+                    <p className="trace-card-products">{productosIngreso(item)}</p>
+                  </article>
+                ))}
+              </div>
+              <ModulePagination
+                page={entriesPagination.page}
+                pageCount={entriesPagination.pageCount}
+                total={entriesPagination.total}
+                from={entriesPagination.from}
+                to={entriesPagination.to}
+                pageSize={entriesPagination.pageSize}
+                onPageChange={entriesPagination.setPage}
+              />
+            </>
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="table">
+                <table className="table table-pro">
                   <thead>
                     <tr>
                       <th aria-label="Detalle" />
-                      <th>ID</th>
-                      <th>Fecha</th>
-                      <th>Guía</th>
-                      <th>Proveedor</th>
-                      <th>Productos</th>
-                      <th>Usuario</th>
-                      <th>Estado</th>
+                      <SortableTh label="ID" column="id" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
+                      <SortableTh label="Fecha" column="fecha" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
+                      <SortableTh label="Guía" column="guia" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
+                      <SortableTh label="Proveedor" column="proveedor" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
+                      <SortableTh label="Productos" column="productos" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
+                      <SortableTh label="Usuario" column="usuario" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
+                      <SortableTh label="Estado" column="estado" sortKey={entriesSort.sort?.key ?? null} direction={entriesSort.sort?.dir ?? null} onSort={entriesSort.toggle} />
                     </tr>
                   </thead>
                   <tbody>
@@ -338,7 +465,7 @@ export default function PaginaTrazabilidad() {
                               {item.detalles.length === 0 ? (
                                 <p className="text-xs text-slate-400">Sin detalle de productos.</p>
                               ) : (
-                                <table className="table">
+                                <table className="table table-pro">
                                   <thead>
                                     <tr>
                                       <th>Código</th>
@@ -393,20 +520,61 @@ export default function PaginaTrazabilidad() {
                 ? 'Ninguna salida coincide con la búsqueda.'
                 : 'Cada despacho genera una salida de almacén con su guía y detalle.'}
             />
+          ) : view === 'grid' ? (
+            <>
+              <div className="mod-grid trace-grid">
+                {exitsPagination.pageItems.map((item) => (
+                  <article key={item.id} className="mod-card trace-card">
+                    <header>
+                      <span className="mod-code">#{item.id}</span>
+                      <Badge tone={item.estado ? 'green' : 'slate'}>
+                        {item.estado ? 'Activo' : 'Anulado'}
+                      </Badge>
+                    </header>
+                    <div>
+                      <p className="mod-card-title">Guía {item.guia ?? '-'}</p>
+                      <p className="mod-card-sub">{item.tipoEntrega ?? 'Salida de almacén'}</p>
+                    </div>
+                    <dl className="trace-card-meta">
+                      <div><dt>Fecha</dt><dd>{formatDate(item.fecha)}</dd></div>
+                      <div><dt>Usuario</dt><dd>{item.usuario || '-'}</dd></div>
+                    </dl>
+                    <p className="trace-card-products">{productosSalida(item)}</p>
+                    <footer>
+                      <span>Despacho</span>
+                      {item.despachoId ? (
+                        <Link to={`/despachos/${item.despachoId}`} className="trace-card-link">
+                          {item.despachoCodigo ?? `#${item.despachoId}`} <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      ) : <strong>-</strong>}
+                    </footer>
+                  </article>
+                ))}
+              </div>
+              <ModulePagination
+                page={exitsPagination.page}
+                pageCount={exitsPagination.pageCount}
+                total={exitsPagination.total}
+                from={exitsPagination.from}
+                to={exitsPagination.to}
+                pageSize={exitsPagination.pageSize}
+                onPageChange={exitsPagination.setPage}
+              />
+            </>
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="table">
+                <table className="table table-pro">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Fecha</th>
-                      <th>Guía</th>
-                      <th>Tipo</th>
-                      <th>Despacho</th>
-                      <th>Productos</th>
-                      <th>Usuario</th>
-                      <th>Estado</th>
+                      <SortableTh label="ID" column="id" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Fecha" column="fecha" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Guía" column="guia" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Tipo" column="tipo" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Despacho" column="despacho" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Productos" column="productos" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Usuario" column="usuario" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
+                      <SortableTh label="Estado" column="estado" sortKey={exitsSort.sort?.key ?? null} direction={exitsSort.sort?.dir ?? null} onSort={exitsSort.toggle} />
                     </tr>
                   </thead>
                   <tbody>
@@ -454,6 +622,23 @@ export default function PaginaTrazabilidad() {
           )}
         </Card>
       )}
+
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={() => setSearch('')}
+        activeCount={search ? 1 : 0}
+        title="Filtros de trazabilidad"
+      >
+        <Field label="Buscar">
+          <Input
+            placeholder={SEARCH_PLACEHOLDER[tab]}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+      </FilterDrawer>
     </div>
   );
 }

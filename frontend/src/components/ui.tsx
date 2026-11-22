@@ -1,6 +1,7 @@
 import {
   Children,
   Fragment,
+  cloneElement,
   forwardRef,
   isValidElement,
   useEffect,
@@ -14,6 +15,7 @@ import {
   type ForwardedRef,
   type InputHTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
@@ -201,6 +203,7 @@ function SearchableSelect({
   required,
   name,
   id,
+  'aria-label': ariaLabel,
   forwardedRef,
   autoFocus: _autoFocus,
   ...rest
@@ -411,10 +414,11 @@ function SearchableSelect({
         ref={triggerRef}
         type="button"
         id={id}
-        className={clsx('input ss-trigger', className)}
+        className="input ss-trigger"
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={onTriggerKeyDown}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
@@ -525,19 +529,59 @@ export function Field({
   hint,
   children,
   className,
+  required = false,
 }: {
   label: string;
   error?: string;
   hint?: string;
   children: ReactNode;
   className?: string;
+  required?: boolean;
 }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const describedBy = [
+    hint && !error ? hintId : null,
+    error ? errorId : null,
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined;
+
+  let control = children;
+  if (isValidElement(children)) {
+    const child = children as ReactElement<Record<string, unknown>>;
+    const childProps = child.props;
+    control = cloneElement(child, {
+      id: (childProps.id as string | undefined) ?? `${id}-control`,
+      'aria-describedby':
+        [childProps['aria-describedby'], describedBy].filter(Boolean).join(' ') || undefined,
+      'aria-invalid': error ? true : undefined,
+      'aria-required': required || undefined,
+    });
+  }
+
   return (
     <label className={clsx('block', className)}>
-      <span className="label">{label}</span>
-      {children}
-      {hint && !error && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
-      {error && <span className="mt-1 block text-xs font-medium text-rose-600">{error}</span>}
+      <span className="label">
+        {label}
+        {required && (
+          <span className="ml-0.5 text-rose-500" aria-hidden="true">
+            *
+          </span>
+        )}
+      </span>
+      {control}
+      {hint && !error && (
+        <span id={hintId} className="mt-1 block text-xs text-slate-500">
+          {hint}
+        </span>
+      )}
+      {error && (
+        <span id={errorId} role="alert" className="mt-1 block text-xs font-medium text-rose-600">
+          {error}
+        </span>
+      )}
     </label>
   );
 }

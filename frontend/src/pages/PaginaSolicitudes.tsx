@@ -11,14 +11,13 @@ import {
   ClipboardList,
   Clock,
   Eye,
-  LayoutGrid,
-  List,
   MapPin,
   Package,
   Plus,
   RefreshCw,
   Search,
   Send,
+  SlidersHorizontal,
   Trash2,
   UserRound,
   X,
@@ -43,8 +42,10 @@ import {
   StatusBadge,
   Textarea,
 } from '@/components/ui';
-import { ModulePagination, usePagination } from '@/components/module';
+import { ModuleChips, ModulePagination, ModuleViewToggle, usePagination, useResponsiveView } from '@/components/module';
 import { FormGrid, FormHero, FormNote, FormSection, FormStats, FormTag } from '@/components/FormKit';
+import { FilterDrawer } from '@/components/FilterDrawer';
+import { SortableTh, useTableSort } from '@/components/sortable';
 import '@/styles/requests.css';
 import '@/styles/modules.css';
 
@@ -87,7 +88,8 @@ export default function PaginaSolicitudes() {
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
-  const [view, setView] = useState<ViewMode>('table');
+  const [view, setView] = useResponsiveView('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<SolicitudMaterial | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -122,7 +124,22 @@ export default function PaginaSolicitudes() {
     });
   }, [data, search, status]);
 
-  const pagination = usePagination(filtered, 8, `${search}|${status}|${view}`);
+  const requestedQuantity = (item: SolicitudMaterial) =>
+    (item.detalles ?? []).reduce((sum, det) => sum + Number(det.cantidadSolicitada), 0);
+  const sorting = useTableSort(filtered, {
+    codigo: (item) => item.codigo,
+    entidad: (item) => item.entidad.razonSocial,
+    solicitante: (item) => `${item.solicitante.nombres} ${item.solicitante.apellidos}`,
+    fecha: (item) => new Date(item.fechaSolicitud).getTime(),
+    items: (item) => item.detalles?.length ?? 0,
+    cantidad: requestedQuantity,
+    estado: (item) => item.estado,
+  });
+  const pagination = usePagination(
+    sorting.rows,
+    8,
+    `${search}|${status}|${view}|${sorting.sort?.key ?? ''}|${sorting.sort?.dir ?? ''}`,
+  );
 
   const totalUnits = useMemo(
     () =>
@@ -199,7 +216,7 @@ export default function PaginaSolicitudes() {
         </div>
       </section>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <KpiFilterCard
           label="Solicitudes"
           value={formatNumber(data.length)}
@@ -255,6 +272,15 @@ export default function PaginaSolicitudes() {
             </div>
 
             <div className="requests-toolbar-controls">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+                aria-label="Abrir filtros de solicitudes"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filtros
+                {status && <span className="rounded-full bg-brand-700 px-1.5 text-[10px] text-white">1</span>}
+              </button>
               <div className="requests-search">
                 <Search className="requests-search-icon h-4 w-4" />
                 <Input
@@ -265,39 +291,18 @@ export default function PaginaSolicitudes() {
                 />
               </div>
 
-              <div className="requests-view-toggle" role="group" aria-label="Modo de visualización">
-                <button
-                  type="button"
-                  className={clsx(view === 'table' && 'is-active')}
-                  onClick={() => setView('table')}
-                >
-                  <List className="h-3.5 w-3.5" /> Tabla
-                </button>
-                <button
-                  type="button"
-                  className={clsx(view === 'grid' && 'is-active')}
-                  onClick={() => setView('grid')}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" /> Tarjetas
-                </button>
-              </div>
+              <ModuleViewToggle value={view} onChange={setView} />
             </div>
           </div>
 
-          <div className="requests-chips" role="tablist" aria-label="Filtrar por estado">
-            {STATUS_FILTERS.map((filter) => (
-              <button
-                key={filter.value || 'ALL'}
-                type="button"
-                role="tab"
-                aria-selected={status === filter.value}
-                className={clsx('requests-chip', status === filter.value && 'is-active')}
-                onClick={() => setStatus(filter.value)}
-              >
-                {filter.label}
-                <span className="requests-chip-count">{counts[filter.value] ?? 0}</span>
-              </button>
-            ))}
+          <div className="hidden sm:block">
+            <ModuleChips
+              filters={STATUS_FILTERS}
+              value={status}
+              onChange={setStatus}
+              counts={counts}
+              ariaLabel="Filtrar por estado"
+            />
           </div>
         </div>
 
@@ -379,16 +384,16 @@ export default function PaginaSolicitudes() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table table-pro">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Entidad / punto</th>
-                  <th>Solicitante</th>
-                  <th>Fecha</th>
-                  <th className="text-center">Ítems</th>
-                  <th className="text-right">Cantidad</th>
-                  <th>Estado</th>
+                  <SortableTh label="Código" column="codigo" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Entidad / punto" column="entidad" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Solicitante" column="solicitante" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Fecha" column="fecha" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Ítems" column="items" className="text-center" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Cantidad" column="cantidad" className="text-right" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
+                  <SortableTh label="Estado" column="estado" sortKey={sorting.sort?.key ?? null} direction={sorting.sort?.dir ?? null} onSort={sorting.toggle} />
                   <th />
                 </tr>
               </thead>
@@ -562,7 +567,7 @@ export default function PaginaSolicitudes() {
             </dl>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="table">
+              <table className="table table-pro">
                 <thead>
                   <tr>
                     <th>Producto</th>
@@ -641,6 +646,36 @@ export default function PaginaSolicitudes() {
           </div>
         )}
       </Modal>
+
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={() => {
+          setStatus('');
+          setSearch('');
+        }}
+        activeCount={status ? 1 : 0}
+        title="Filtros de solicitudes"
+      >
+        <Field label="Buscar">
+          <Input
+            placeholder="Código, entidad, punto o solicitante"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <div>
+          <p className="label">Estado</p>
+          <ModuleChips
+            filters={STATUS_FILTERS}
+            value={status}
+            onChange={setStatus}
+            counts={counts}
+            ariaLabel="Filtrar por estado"
+          />
+        </div>
+      </FilterDrawer>
     </div>
   );
 }

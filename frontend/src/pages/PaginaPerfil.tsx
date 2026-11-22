@@ -30,7 +30,6 @@ import '@/styles/modules.css';
 export default function PaginaPerfil() {
   const user = useAuth((state) => state.user);
   const updateUser = useAuth((state) => state.updateUser);
-  const refreshToken = useAuth((state) => state.refreshToken);
   const logout = useAuth((state) => state.logout);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -50,6 +49,10 @@ export default function PaginaPerfil() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [mfaSetup, setMfaSetup] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaBusy, setMfaBusy] = useState(false);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -159,8 +162,55 @@ export default function PaginaPerfil() {
     }
   };
 
+  const startMfaSetup = async () => {
+    setMfaBusy(true);
+    setMfaError(null);
+    try {
+      const { data } = await api.post<{ secret: string; otpauthUri: string }>('/auth/mfa/setup');
+      setMfaSetup(data);
+      setMfaCode('');
+    } catch (err) {
+      setMfaError(apiErrorMessage(err));
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const enableMfa = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setMfaBusy(true);
+    setMfaError(null);
+    try {
+      await api.post('/auth/mfa/enable', { code: mfaCode });
+      toastSuccess('MFA activado. En tu próximo ingreso se pedirá el código.');
+      setMfaSetup(null);
+      setMfaCode('');
+      perfil.reload();
+    } catch (err) {
+      setMfaError(apiErrorMessage(err));
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const disableMfa = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setMfaBusy(true);
+    setMfaError(null);
+    try {
+      await api.post('/auth/mfa/disable', { code: mfaCode });
+      toastSuccess('MFA desactivado.');
+      setMfaCode('');
+      perfil.reload();
+    } catch (err) {
+      setMfaError(apiErrorMessage(err));
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
   const handleLogout = async () => {
-    await logoutRequest(refreshToken);
+    await logoutRequest();
     logout();
     navigate('/login', { replace: true });
   };
@@ -187,7 +237,7 @@ export default function PaginaPerfil() {
         }
       />
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
         <ModuleKpi
           label="Rol asignado"
           value={user ? ROLE_LABELS[user.rol] : '-'}
@@ -380,6 +430,82 @@ export default function PaginaPerfil() {
                 <KeyRound className="h-4 w-4" /> Actualizar contraseña
               </Button>
             </form>
+          </Card>
+
+          <Card className="mod-reveal mod-reveal-3">
+            <div className="mod-toolbar">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Verificación en dos pasos</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Protege tu cuenta con un código temporal de tu aplicación autenticadora.
+                </p>
+              </div>
+              <span className="mod-kpi-icon !h-9 !w-9">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="card-body space-y-3">
+              {perfil.data?.mfaEnabled ? (
+                <form className="space-y-3" onSubmit={disableMfa}>
+                  <p className="text-xs text-slate-600">
+                    MFA está <strong>activo</strong>. Se solicitará un código en cada inicio de sesión.
+                  </p>
+                  {mfaError && <ErrorAlert message={mfaError} />}
+                  <Field label="Código actual para desactivar">
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={mfaCode}
+                      onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    />
+                  </Field>
+                  <Button type="submit" variant="secondary" loading={mfaBusy} disabled={mfaCode.length !== 6}>
+                    Desactivar MFA
+                  </Button>
+                </form>
+              ) : mfaSetup ? (
+                <form className="space-y-3" onSubmit={enableMfa}>
+                  <p className="text-xs text-slate-600">
+                    Agrega esta cuenta en Google Authenticator, Microsoft Authenticator o 1Password:
+                  </p>
+                  <code className="block break-all rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                    {mfaSetup.secret}
+                  </code>
+                  <a className="text-xs font-semibold text-brand-700 underline" href={mfaSetup.otpauthUri}>
+                    Abrir configuración en la aplicación
+                  </a>
+                  {mfaError && <ErrorAlert message={mfaError} />}
+                  <Field label="Código de 6 dígitos">
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={mfaCode}
+                      onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    />
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button type="submit" loading={mfaBusy} disabled={mfaCode.length !== 6}>
+                      Activar MFA
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => setMfaSetup(null)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-600">
+                    Tu cuenta aún no tiene MFA. Recomendado especialmente para administradores.
+                  </p>
+                  {mfaError && <ErrorAlert message={mfaError} />}
+                  <Button type="button" variant="soft" loading={mfaBusy} onClick={startMfaSetup}>
+                    <ShieldCheck className="h-4 w-4" /> Configurar MFA
+                  </Button>
+                </>
+              )}
+            </div>
           </Card>
 
           <Card className="mod-reveal mod-reveal-4">

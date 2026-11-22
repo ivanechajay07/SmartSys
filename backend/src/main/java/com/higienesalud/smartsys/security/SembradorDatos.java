@@ -5,6 +5,11 @@ import com.higienesalud.smartsys.interfaces.ProductoDao;
 import com.higienesalud.smartsys.exception.*;
 
 import com.higienesalud.smartsys.model.*;
+import com.higienesalud.smartsys.service.ServicioDespacho;
+import com.higienesalud.smartsys.service.ServicioProgramacion;
+import com.higienesalud.smartsys.service.ServicioSolicitud;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -18,6 +23,8 @@ import java.util.List;
 @Configuration
 public class SembradorDatos {
 
+    private static final Logger log = LoggerFactory.getLogger(SembradorDatos.class);
+
     @Bean
     CommandLineRunner seedUsers(UsuarioDao Dao, PasswordEncoder encoder,
                                 @Value("${app.seed.password:Admin123!}") String defaultPassword,
@@ -30,7 +37,10 @@ public class SembradorDatos {
                                 ProductoDao productoDao,
                                 InventarioDao inventarioDao,
                                 VehiculoDao vehiculoDao,
-                                ProveedorDao proveedorDao) {
+                                ProveedorDao proveedorDao,
+                                ServicioSolicitud solicitudService,
+                                ServicioProgramacion programacionService,
+                                ServicioDespacho despachoService) {
         return args -> {
             if (Dao.count() == 0) {
                 String hash = encoder.encode(defaultPassword);
@@ -131,7 +141,7 @@ public class SembradorDatos {
                     inventario(detergente, "60", "0", "25")
             ));
 
-            tdrItemDao.save(TdrItem.builder().tdr(tdr).producto(jabon)
+            TdrItem itemJabon = tdrItemDao.save(TdrItem.builder().tdr(tdr).producto(jabon)
                     .cantidadTotal(new BigDecimal("1200")).unidad("BOTELLA").frecuencia(Frecuencia.MENSUAL)
                     .cantidadPorEntrega(new BigDecimal("200")).fechaProgramada(LocalDate.now().withDayOfMonth(5))
                     .fechaLimite(LocalDate.now().plusMonths(6)).build());
@@ -144,11 +154,54 @@ public class SembradorDatos {
                     .cantidadPorEntrega(new BigDecimal("100")).fechaProgramada(LocalDate.now().withDayOfMonth(10))
                     .fechaLimite(LocalDate.now().plusMonths(6)).build());
 
-            vehiculoDao.saveAll(List.of(
+            List<Vehiculo> flota = vehiculoDao.saveAll(List.of(
                     Vehiculo.builder().placa("ABC-123").marca("Toyota").modelo("Hilux").tipo("CAMIONETA").build(),
                     Vehiculo.builder().placa("XYZ-987").marca("Hyundai").modelo("H100").tipo("FURGON").build()
             ));
+
+            seedOperacionDemo(Dao, solicitudService, programacionService, despachoService,
+                    essalud, hospital, jabon, itemJabon, flota);
         };
+    }
+
+    private void seedOperacionDemo(UsuarioDao usuarioDao,
+                                   ServicioSolicitud solicitudService,
+                                   ServicioProgramacion programacionService,
+                                   ServicioDespacho despachoService,
+                                   EntidadPublica entidad,
+                                   PuntoEntrega punto,
+                                   Producto producto,
+                                   TdrItem tdrItem,
+                                   List<Vehiculo> flota) {
+        try {
+            Usuario operativo = usuarioDao.findByEmailIgnoreCase("operativo@smartsys.local").orElseThrow();
+            Usuario logistica = usuarioDao.findByEmailIgnoreCase("logistica@smartsys.local").orElseThrow();
+            Usuario almacen = usuarioDao.findByEmailIgnoreCase("almacen@smartsys.local").orElseThrow();
+            Usuario transporte = usuarioDao.findByEmailIgnoreCase("transporte@smartsys.local").orElseThrow();
+
+            SolicitudMaterial solicitud = solicitudService.create(
+                    entidad.getId(), punto.getId(),
+                    "Reposición preventiva de insumos para el área de hospitalización.",
+                    List.of(new ServicioSolicitud.Item(producto.getId(), new BigDecimal("20"))),
+                    operativo);
+            solicitudService.submit(solicitud.getId());
+            solicitudService.approve(solicitud.getId(), logistica);
+
+            ProgramacionAbastecimiento programacion = programacionService.create(
+                    tdrItem.getId(), punto.getId(), LocalDate.now().plusDays(2), new BigDecimal("200"));
+
+            Despacho despacho = despachoService.create(
+                    programacion.getId(), almacen.getId(), solicitud.getId(), new BigDecimal("200"));
+            despachoService.prepare(despacho.getId(),
+                    List.of(new ServicioDespacho.PrepareItem(producto.getId(), new BigDecimal("200"))), almacen);
+            despachoService.assign(despacho.getId(), transporte.getId(), null,
+                    flota.isEmpty() ? null : flota.get(0).getId(), logistica);
+            despachoService.depart(despacho.getId(), logistica);
+            log.info("Dataset operativo demo creado: solicitud {}, despacho {}",
+                    solicitud.getCodigo(), despacho.getCodigo());
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo crear el dataset operativo demo: {}", ex.getMessage());
+        }
     }
 
     private Inventario inventario(Producto producto, String fisico, String reservado, String minimo) {

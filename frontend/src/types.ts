@@ -482,7 +482,6 @@ export interface ReportHistorial {
 
 export interface AuthResponse {
   token: string;
-  refreshToken: string;
   type: string;
   expiresIn: number;
   id: number;
@@ -491,6 +490,19 @@ export interface AuthResponse {
   rol: Rol;
   telefono?: string;
   avatarUrl?: string;
+}
+
+export interface MfaChallenge {
+  mfaRequired: true;
+  mfaToken: string;
+  email: string;
+  nombre: string;
+}
+
+export type LoginResponse = AuthResponse | MfaChallenge;
+
+export function isMfaChallenge(value: LoginResponse): value is MfaChallenge {
+  return 'mfaRequired' in value && value.mfaRequired === true;
 }
 
 export interface PerfilUsuario {
@@ -502,6 +514,7 @@ export interface PerfilUsuario {
   apellidos: string;
   telefono?: string;
   avatarUrl?: string;
+  mfaEnabled?: boolean;
   ultimoAcceso?: string;
   createdAt?: string;
 }

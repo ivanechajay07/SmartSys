@@ -16,13 +16,13 @@
   align-items: flex-start;
   gap: 10px;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ss-color-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--ss-alpha-255-255-255-960);
   padding: 11px 12px 12px;
   box-shadow:
-    0 22px 45px -28px rgba(2, 6, 23, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 22px 45px -28px var(--ss-alpha-2-6-23-550),
+    inset 0 1px 0 var(--ss-alpha-255-255-255-900);
   backdrop-filter: blur(14px);
   pointer-events: auto;
   animation: toast-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -34,8 +34,8 @@
 .toast:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 26px 52px -28px rgba(2, 6, 23, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 26px 52px -28px var(--ss-alpha-2-6-23-600),
+    inset 0 1px 0 var(--ss-alpha-255-255-255-900);
 }
 
 .toast:hover .toast-progress {
@@ -47,12 +47,12 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #10b894;
+  background: var(--ss-palette-10b894);
 }
 
-.toast-success::before { background: linear-gradient(180deg, #34d3ac, #047664); }
-.toast-error::before { background: linear-gradient(180deg, #fb7185, #be123c); }
-.toast-info::before { background: linear-gradient(180deg, #38bdf8, #0369a1); }
+.toast-success::before { background: linear-gradient(180deg, var(--ss-palette-34d3ac), var(--ss-palette-047664)); }
+.toast-error::before { background: linear-gradient(180deg, var(--ss-palette-fb7185), var(--ss-palette-be123c)); }
+.toast-info::before { background: linear-gradient(180deg, var(--ss-palette-38bdf8), var(--ss-palette-0369a1)); }
 
 .toast-icon {
   display: grid;
@@ -61,18 +61,18 @@
   flex-shrink: 0;
   place-items: center;
   border-radius: 9px;
-  background: #ecfdf8;
-  color: #047664;
+  background: var(--ss-palette-ecfdf8);
+  color: var(--ss-palette-047664);
 }
 
 .toast-error .toast-icon {
-  background: #fff1f2;
-  color: #be123c;
+  background: var(--ss-palette-fff1f2);
+  color: var(--ss-palette-be123c);
 }
 
 .toast-info .toast-icon {
-  background: #f0f9ff;
-  color: #0369a1;
+  background: var(--ss-palette-f0f9ff);
+  color: var(--ss-palette-0369a1);
 }
 
 .toast-copy {
@@ -81,7 +81,7 @@
 }
 
 .toast-copy p {
-  color: #0f172a;
+  color: var(--ss-color-text);
   font-size: 0.74rem;
   font-weight: 700;
   line-height: 1.35;
@@ -90,7 +90,7 @@
 .toast-copy span {
   display: block;
   margin-top: 2px;
-  color: #64748b;
+  color: var(--ss-color-text-subtle);
   font-size: 0.66rem;
   line-height: 1.45;
 }
@@ -102,13 +102,13 @@
   flex-shrink: 0;
   place-items: center;
   border-radius: 7px;
-  color: #94a3b8;
+  color: var(--ss-color-text-faint);
   transition: all 0.18s ease;
 }
 
 .toast-close:hover {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--ss-palette-f1f5f9);
+  color: var(--ss-color-text-muted);
 }
 
 .toast-progress {
@@ -118,37 +118,37 @@
   height: 2px;
   width: 100%;
   transform-origin: left;
-  background: linear-gradient(90deg, #34d3ac, #0ea5e9);
+  background: linear-gradient(90deg, var(--ss-palette-34d3ac), var(--ss-palette-0ea5e9));
   animation: toast-progress var(--toast-duration, 4200ms) linear forwards;
 }
 
 .toast-error .toast-progress {
-  background: linear-gradient(90deg, #fb7185, #be123c);
+  background: linear-gradient(90deg, var(--ss-palette-fb7185), var(--ss-palette-be123c));
 }
 
 .toast-info .toast-progress {
-  background: linear-gradient(90deg, #38bdf8, #0369a1);
+  background: linear-gradient(90deg, var(--ss-palette-38bdf8), var(--ss-palette-0369a1));
 }
 
 html.theme-dark .toast {
-  border-color: #1e293b;
-  background: rgba(12, 24, 41, 0.96);
+  border-color: var(--ss-color-text-strong);
+  background: var(--ss-alpha-12-24-41-960);
   box-shadow:
-    0 22px 45px -24px rgba(0, 0, 0, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 22px 45px -24px var(--ss-alpha-0-0-0-900),
+    inset 0 1px 0 var(--ss-alpha-255-255-255-050);
 }
 
 html.theme-dark .toast-copy p {
-  color: #f1f5f9;
+  color: var(--ss-palette-f1f5f9);
 }
 
 html.theme-dark .toast-copy span {
-  color: #94a3b8;
+  color: var(--ss-color-text-faint);
 }
 
 html.theme-dark .toast-close:hover {
-  background: #1e293b;
-  color: #cbd5e1;
+  background: var(--ss-color-text-strong);
+  color: var(--ss-color-border-strong);
 }
 
 @keyframes toast-in {

@@ -35,7 +35,9 @@ export function UserAvatar({
       {presence && (
         <i
           className={clsx('user-presence', presence === 'online' ? 'is-online' : 'is-offline')}
+          role="img"
           aria-label={presence === 'online' ? 'En línea' : 'Desconectado'}
+          title={presence === 'online' ? 'En línea' : 'Desconectado'}
         />
       )}
     </span>

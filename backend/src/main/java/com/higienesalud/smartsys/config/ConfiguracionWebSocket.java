@@ -60,6 +60,8 @@ public class ConfiguracionWebSocket implements WebSocketMessageBrokerConfigurer 
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
+                // El topic global anterior queda prohibido: cada usuario solo
+                // puede escuchar su cola personal, su rol o anuncios generales.
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
                 if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
                     List<String> headers = accessor.getNativeHeader("Authorization");
@@ -78,7 +80,42 @@ public class ConfiguracionWebSocket implements WebSocketMessageBrokerConfigurer 
                     accessor.setUser(new UsernamePasswordAuthenticationToken(
                             user, null, user.getAuthorities()));
                 }
+                if (accessor != null && StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+                    autorizarSuscripcion(accessor);
+                }
                 return message;
+            }
+
+            private void autorizarSuscripcion(StompHeaderAccessor accessor) {
+                String destination = accessor.getDestination();
+                if (destination == null) {
+                    return;
+                }
+                if (!(accessor.getUser() instanceof org.springframework.security.core.Authentication authentication)) {
+                    throw new IllegalArgumentException("Suscripción sin autenticación");
+                }
+                if ("/topic/notifications".equals(destination)) {
+                    throw new IllegalArgumentException("Suscripción global no permitida");
+                }
+                if (destination.startsWith("/topic/notifications/")) {
+                    String scope = destination.substring("/topic/notifications/".length());
+                    if ("general".equals(scope)) {
+                        return;
+                    }
+                    String required = "ROLE_" + scope;
+                    boolean allowed = authentication.getAuthorities().stream()
+                            .anyMatch(authority -> required.equals(authority.getAuthority()));
+                    if (!allowed) {
+                        throw new IllegalArgumentException("Suscripción no autorizada");
+                    }
+                    return;
+                }
+                // Solo se permite la cola personal estándar; se evita que un
+                // cliente intente suscribirse a /user/{otro}/queue/...
+                if (destination.startsWith("/user/")
+                        && !"/user/queue/notifications".equals(destination)) {
+                    throw new IllegalArgumentException("Destino de usuario no permitido");
+                }
             }
         });
     }

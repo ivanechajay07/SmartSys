@@ -62,12 +62,23 @@ docker compose ps
 | Servicio | URL por defecto |
 | --- | --- |
 | Frontend | <http://localhost:8082> |
-| API / Swagger | <http://localhost:8080/swagger-ui.html> |
-| Health | <http://localhost:8080/actuator/health> |
+| API | <http://localhost:8082/api/v1> (solo a través de Nginx) |
+| Health | <http://localhost:8082/actuator/health> |
 | phpMyAdmin | <http://localhost:8081> (según `PHPMYADMIN_PORT`) |
 | MySQL | `localhost:3306` |
 
-Los puertos son configurables en `.env` (`FRONTEND_PORT`, `API_PORT`, `PHPMYADMIN_PORT`, `MYSQL_PORT`).
+El backend no se publica directamente en el host. Los puertos configurables son `FRONTEND_PORT`, `PHPMYADMIN_PORT` y `MYSQL_PORT`.
+
+Swagger queda deshabilitado por defecto (`SPRINGDOC_API_DOCS_ENABLED=false`, `SPRINGDOC_SWAGGER_UI_ENABLED=false`). Si se habilita, requiere autenticación con rol administrador. Actuator health es público; el resto de endpoints de Actuator requiere administrador.
+
+TLS de piloto y respaldo programado:
+
+```bash
+docker compose --profile tls up -d caddy       # https://localhost:8443 (CA interna)
+docker compose --profile backup up -d backup   # ./backups/*.sql.gz cada 24 h
+```
+
+También puede usar `scripts/backup-mysql.sh` o `scripts/backup-mysql.ps1` desde el host.
 
 ### Usuarios de demostración
 
@@ -120,9 +131,12 @@ cd frontend && npm run e2e
 
 # E2E contra la pila Docker
 E2E_BASE_URL=http://localhost:8082 npm run e2e
+
+# Accesibilidad WCAG 2.1 AA (axe)
+E2E_BASE_URL=http://localhost:8082 npm run test:a11y
 ```
 
-Resultados de la última ejecución: **46 pruebas backend (45 OK, 1 omitida)**, **17 pruebas frontend**, **20 pruebas E2E**, **0 vulnerabilidades npm**. Ver [Calidad y pendientes](docs/CALIDAD_Y_PENDIENTES.md).
+Resultados de la última ejecución (20/11/2026): **60 pruebas backend (59 OK, 1 omitida por Testcontainers local)**, **17 pruebas frontend**, **28 pruebas E2E (20 funcionales + 8 de accesibilidad axe)**, **0 vulnerabilidades npm**. Cobertura frontend actual: **1,6 %** (faltan pruebas de páginas). Ver [Calidad y pendientes](docs/CALIDAD_Y_PENDIENTES.md) y [Mejoras implementadas](docs/MEJORAS_IMPLEMENTADAS_2026-11-19.md).
 
 ## 6. Estructura del repositorio
 
@@ -131,6 +145,9 @@ SmartSys/
 ├── backend/                 API Spring Boot en capas (controller/service/dao/model), Flyway y pruebas
 ├── frontend/                SPA React + TypeScript, pruebas y E2E
 ├── docker-compose.yml       MySQL + phpMyAdmin + backend + frontend
+├── scripts/                 Respaldos Linux/Windows
+├── deploy/                  Caddyfile para perfil TLS
+├── .github/                 CI y Dependabot
 ├── .env.example             Plantilla de configuración
 └── README.md
 ```
@@ -138,26 +155,35 @@ SmartSys/
 
 ## 7. Seguridad en una página
 
-- API stateless con Bearer JWT; refresh tokens opacos rotativos almacenados como hash SHA-256.
+- Access token en memoria; refresh token opaco rotativo en cookie `HttpOnly; Secure; SameSite=Strict` y hash SHA-256 en base de datos.
+- CSRF con cookie `XSRF-TOKEN` y cabecera `X-XSRF-TOKEN` para operaciones autenticadas.
+- Detección de reutilización de refresh token: revoca toda la familia de sesiones.
+- MFA TOTP opcional desde **Mi perfil**; al activarse, el login exige un código de 6 dígitos.
+- Logout revoca el refresh token y limpia la cookie aunque el access token ya haya expirado.
 - Contraseñas con BCrypt factor 12; bloqueo temporal tras 5 intentos fallidos.
+- Rate limiting en memoria por IP para login, refresh, recuperación y exportaciones.
 - Autorización declarativa por rol con `@PreAuthorize` y rutas protegidas en el frontend.
-- CORS restringido por lista explícita; CSRF deshabilitado solo porque no se usan cookies de sesión.
+- CORS restringido por lista explícita.
 - Consultas parametrizadas vía JPA; sin SQL concatenado.
 - Frontend React escapa contenido por defecto; no se usa `dangerouslySetInnerHTML`.
-- Nginx agrega CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`.
+- Nginx agrega CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` y `Permissions-Policy` también en HTML y assets.
+- Notificaciones en tiempo real segmentadas por usuario, rol o anuncio general; el topic global fue retirado.
+- Los archivos de evidencia validan firma binaria (JPEG/PNG/WEBP/PDF) antes de almacenarse.
+- Perfil TLS opcional con Caddy (HSTS y proxy) y respaldo programado con retención en el perfil `backup`.
+- Métricas Prometheus en `/actuator/prometheus`, protegidas con rol administrador y sin exposición directa del backend.
 - Dependencias: `npm audit` y la imagen frontend en 0 vulnerabilidades; el backend conserva 2 CVE críticas de Spring WebMVC en funcionalidades no utilizadas (XSLT/SSE), documentadas como bloqueador P1.
 
 
 ## 8. Limitaciones conocidas
 
-- Testcontainers no puede conectarse al Docker Desktop de este entorno; la prueba MySQL real se omite automáticamente (`disabledWithoutDocker`). El esquema se validó manualmente contra MySQL 8 con Flyway + `ddl-auto=validate`.
+- Testcontainers no puede conectarse al Docker Desktop de este entorno; la prueba MySQL real se omite automáticamente (`disabledWithoutDocker`). El esquema se validó manualmente contra MySQL 8 con Flyway + `ddl-auto=validate`; el pipeline CI sí ejecuta Docker.
 - La administración de usuarios se realiza desde la interfaz **Usuarios y roles** según los permisos asignados al rol.
-- Las evidencias se registran como URL; no hay almacenamiento ni carga binaria de archivos.
-- No se incluye terminación TLS; debe desplegarse detrás de un proxy HTTPS.
-- No hay rate limiting de aplicación ni MFA.
+- Las evidencias admiten URL o archivo binario (JPG/PNG/WEBP/PDF, máximo 8 MB) con validación de firma; no hay antivirus ni almacenamiento de objetos.
+- El compose incluye un perfil TLS de piloto con Caddy y CA interna; producción requiere un certificado confiable y dominio real.
+- El rate limiting es en memoria por instancia; en HA debe complementarse con proxy/Redis. MFA TOTP ya está disponible; su activación es opcional y recomendada para administradores.
 - Spring WebMVC 6.2.19 conserva 2 CVE críticas en XSLT/SSE (no usados); la corrección requiere Spring Boot 4.
 - La imagen de phpMyAdmin contiene bibliotecas vulnerables; no debe desplegarse en producción y solo se publica en `127.0.0.1`.
-- El repositorio no está inicializado en Git.
+- El proyecto ya está versionado en Git (`ivan.echajay`); el pipeline CI está en `.github/workflows/ci.yml`.
 
 ## 9. Contacto
 

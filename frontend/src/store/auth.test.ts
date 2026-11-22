@@ -10,10 +10,9 @@ const session = {
 
 describe('auth store', () => {
   it('stores and clears the session', () => {
-    useAuth.getState().setSession('access-token', 'refresh-token', session);
+    useAuth.getState().setSession('access-token', session);
 
     expect(useAuth.getState().token).toBe('access-token');
-    expect(useAuth.getState().refreshToken).toBe('refresh-token');
     expect(useAuth.getState().user?.email).toBe(session.email);
     expect(useAuth.getState().hasRole('ADMINISTRADOR')).toBe(true);
     expect(useAuth.getState().hasRole('TRANSPORTISTA')).toBe(false);
@@ -23,12 +22,11 @@ describe('auth store', () => {
     expect(useAuth.getState().user).toBeNull();
   });
 
-  it('rotates access and refresh tokens without changing the user', () => {
-    useAuth.getState().setSession('old-access', 'old-refresh', session);
-    useAuth.getState().setTokens('new-access', 'new-refresh');
+  it('rotates the access token without changing the user', () => {
+    useAuth.getState().setSession('old-access', session);
+    useAuth.getState().setToken('new-access');
 
     expect(useAuth.getState().token).toBe('new-access');
-    expect(useAuth.getState().refreshToken).toBe('new-refresh');
     expect(useAuth.getState().user?.id).toBe(1);
   });
 });

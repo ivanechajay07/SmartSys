@@ -125,7 +125,7 @@ public class ServicioReportes {
             case "recepciones" -> receptions(desde, hasta);
             case "incidencias" -> incidents(desde, hasta);
             case "cumplimiento-tdr" -> tdrCompliance();
-            default -> throw new IllegalArgumentException("Reporte no soportado: " + key);
+            default -> throw new ExcepcionNoEncontrada("Reporte no soportado: " + key);
         };
     }
 
